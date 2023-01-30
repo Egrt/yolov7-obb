@@ -7,7 +7,7 @@ from PIL import Image
 from torch.utils.data.dataset import Dataset
 
 from utils.utils import cvtColor, preprocess_input
-
+from utils.utils_rbox import poly_filter, poly2rbox
 
 class YoloDataset(Dataset):
     def __init__(self, annotation_lines, input_shape, num_classes, anchors, anchors_mask, epoch_length, \
@@ -29,7 +29,7 @@ class YoloDataset(Dataset):
         self.epoch_now          = -1
         self.length             = len(self.annotation_lines)
         
-        self.bbox_attrs         = 5 + num_classes
+        self.bbox_attrs         = 5 + 1 + num_classes
 
     def __len__(self):
         return self.length
@@ -61,7 +61,7 @@ class YoloDataset(Dataset):
         #   对真实框进行预处理
         #---------------------------------------------------#
         nL          = len(box)
-        labels_out  = np.zeros((nL, 6))
+        labels_out  = np.zeros((nL, 7))
         if nL:
             #---------------------------------------------------#
             #   对真实框进行归一化，调整到0-1之间
@@ -71,7 +71,8 @@ class YoloDataset(Dataset):
             #---------------------------------------------------#
             #   序号为0、1的部分，为真实框的中心
             #   序号为2、3的部分，为真实框的宽高
-            #   序号为4的部分，为真实框的种类
+            #   序号为4的部分，为真实框的旋转角度
+            #   序号为5的部分，为真实框的种类
             #---------------------------------------------------#
             box[:, 2:4] = box[:, 2:4] - box[:, 0:2]
             box[:, 0:2] = box[:, 0:2] + box[:, 2:4] / 2
@@ -81,7 +82,7 @@ class YoloDataset(Dataset):
             #   labels_out中序号为0的部分在collect时处理
             #---------------------------------------------------#
             labels_out[:, 1] = box[:, -1]
-            labels_out[:, 2:] = box[:, :4]
+            labels_out[:, 2:] = box[:, :5]
             
         return image, labels_out
 

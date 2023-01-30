@@ -277,11 +277,11 @@ class YoloBody(nn.Module):
 
         # 4 + 1 + num_classes
         # 80, 80, 256 => 80, 80, 3 * 25 (4 + 1 + 20) & 85 (4 + 1 + 80)
-        self.yolo_head_P3 = nn.Conv2d(transition_channels * 8, len(anchors_mask[2]) * (5 + num_classes), 1)
+        self.yolo_head_P3 = nn.Conv2d(transition_channels * 8, len(anchors_mask[2]) * (5 + 1 + num_classes), 1)
         # 40, 40, 512 => 40, 40, 3 * 25 & 85
-        self.yolo_head_P4 = nn.Conv2d(transition_channels * 16, len(anchors_mask[1]) * (5 + num_classes), 1)
+        self.yolo_head_P4 = nn.Conv2d(transition_channels * 16, len(anchors_mask[1]) * (5 + 1 + num_classes), 1)
         # 20, 20, 512 => 20, 20, 3 * 25 & 85
-        self.yolo_head_P5 = nn.Conv2d(transition_channels * 32, len(anchors_mask[0]) * (5 + num_classes), 1)
+        self.yolo_head_P5 = nn.Conv2d(transition_channels * 32, len(anchors_mask[0]) * (5 + 1 + num_classes), 1)
 
     def fuse(self):
         print('Fusing layers... ')
