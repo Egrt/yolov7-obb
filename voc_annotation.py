@@ -20,7 +20,7 @@ annotation_mode     = 0
 #   那么就是因为classes没有设定正确
 #   仅在annotation_mode为0和2的时候有效
 #-------------------------------------------------------------------#
-classes_path        = 'model_data/voc_classes.txt'
+classes_path        = 'model_data/ssdd_classes.txt'
 #--------------------------------------------------------------------------------------------------------------------------------#
 #   trainval_percent用于指定(训练集+验证集)与测试集的比例，默认情况下 (训练集+验证集):测试集 = 9:1
 #   train_percent用于指定(训练集+验证集)中训练集与验证集的比例，默认情况下 训练集:验证集 = 9:1
@@ -55,8 +55,8 @@ def convert_annotation(year, image_id, list_file):
         if cls not in classes or int(difficult)==1:
             continue
         cls_id = classes.index(cls)
-        xmlbox = obj.find('bndbox')
-        b = (int(float(xmlbox.find('xmin').text)), int(float(xmlbox.find('ymin').text)), int(float(xmlbox.find('xmax').text)), int(float(xmlbox.find('ymax').text)))
+        xmlbox = obj.find('rotated_bndbox')
+        b = (int(float(xmlbox.find('rotated_bbox_cx').text)), int(float(xmlbox.find('rotated_bbox_cy').text)), int(float(xmlbox.find('rotated_bbox_w').text)), int(float(xmlbox.find('rotated_bbox_h').text)), float(xmlbox.find('rotated_bbox_theta').text))
         list_file.write(" " + ",".join([str(a) for a in b]) + ',' + str(cls_id))
         
         nums[classes.index(cls)] = nums[classes.index(cls)] + 1
