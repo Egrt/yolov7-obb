@@ -137,7 +137,7 @@ class YOLOLoss(nn.Module):
                 #-------------------------------------------#
                 xy      = prediction_pos[:, :2].sigmoid() * 2. - 0.5
                 wh      = (prediction_pos[:, 2:4].sigmoid() * 2) ** 2 * anchors[i]
-                angle   = (prediction_pos[:, 4:5].sigmoid() - 0.5) * torch.pi
+                angle   = (prediction_pos[:, 4:5].sigmoid() - 0.5) * math.pi
                 box_theta = torch.cat((xy, wh, angle), 1)
                 #-------------------------------------------#
                 #   对真实框进行处理，映射到特征层上
@@ -150,7 +150,7 @@ class YOLOLoss(nn.Module):
                 #   计算预测框和真实框的回归损失
                 #-------------------------------------------#
                 kldloss                 = self.kldbbox(box_theta, selected_tbox_theta)
-                loss                    += kldloss.mean()
+                box_loss                += kldloss.mean()
                 #-------------------------------------------#
                 #   根据预测结果的iou获得置信度损失的gt
                 #-------------------------------------------#
@@ -299,7 +299,7 @@ class YOLOLoss(nn.Module):
                 grid    = torch.stack([gi, gj], dim=1).type_as(fg_pred)
                 pxy     = (fg_pred[:, :2].sigmoid() * 2. - 0.5 + grid) * self.stride[i]
                 pwh     = (fg_pred[:, 2:4].sigmoid() * 2) ** 2 * anch[i][idx] * self.stride[i]
-                pangle  = (fg_pred[:, 4:5].sigmoid() - 0.5) * torch.pi
+                pangle  = (fg_pred[:, 4:5].sigmoid() - 0.5) * math.pi
                 pxywh   = torch.cat([pxy, pwh, pangle], dim=-1)
                 pxyxys.append(pxywh)
             

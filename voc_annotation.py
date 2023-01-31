@@ -56,7 +56,7 @@ def convert_annotation(year, image_id, list_file):
             continue
         cls_id = classes.index(cls)
         xmlbox = obj.find('rotated_bndbox')
-        b = (int(float(xmlbox.find('rotated_bbox_cx').text)), int(float(xmlbox.find('rotated_bbox_cy').text)), int(float(xmlbox.find('rotated_bbox_w').text)), int(float(xmlbox.find('rotated_bbox_h').text)), float(xmlbox.find('rotated_bbox_theta').text))
+        b = (int(float(xmlbox.find('rotated_bbox_cx').text)), int(float(xmlbox.find('rotated_bbox_cy').text)), int(float(xmlbox.find('rotated_bbox_w').text)), int(float(xmlbox.find('rotated_bbox_h').text)), int(float(xmlbox.find('rotated_bbox_theta').text)))
         list_file.write(" " + ",".join([str(a) for a in b]) + ',' + str(cls_id))
         
         nums[classes.index(cls)] = nums[classes.index(cls)] + 1
