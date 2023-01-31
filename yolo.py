@@ -10,7 +10,7 @@ from PIL import ImageDraw, ImageFont
 from nets.yolo import YoloBody
 from utils.utils import (cvtColor, get_anchors, get_classes, preprocess_input,
                          resize_image, show_config)
-from utils.utils_bbox import non_max_suppression_obb
+from utils.utils_bbox import DecodeBox
 from utils.utils_rbox import rbox2poly
 '''
 训练自己的数据集必看注释！
@@ -84,7 +84,7 @@ class YOLO(object):
         #---------------------------------------------------#
         self.class_names, self.num_classes  = get_classes(self.classes_path)
         self.anchors, self.num_anchors      = get_anchors(self.anchors_path)
-
+        self.bbox_util                      = DecodeBox(self.anchors, self.num_classes, (self.input_shape[0], self.input_shape[1]), self.anchors_mask)
         #---------------------------------------------------#
         #   画框设置不同的颜色
         #---------------------------------------------------#
@@ -144,10 +144,11 @@ class YOLO(object):
             #   将图像输入网络当中进行预测！
             #---------------------------------------------------------#
             outputs = self.net(images)
+            outputs = self.bbox_util.decode_box(outputs)
             #---------------------------------------------------------#
             #   将预测框进行堆叠，然后进行非极大抑制
             #---------------------------------------------------------#
-            results = non_max_suppression_obb(outputs, self.confidence, self.nms_iou, classes=self.num_classes)
+            results = self.bbox_util.non_max_suppression_obb(torch.cat(outputs, 1), self.confidence, self.nms_iou, classes=self.num_classes)
                                                     
             if results[0] is None: 
                 return image
