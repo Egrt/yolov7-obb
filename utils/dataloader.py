@@ -113,7 +113,7 @@ class YoloDataset(Dataset):
         image   = image.resize((w,h), Image.BICUBIC)
         image_data  = np.array(image, np.float32)
         
-        return image_data, box
+        return image_data, rbox
     
     def merge_bboxes(self, bboxes, cutx, cuty):
         merge_bbox = []
