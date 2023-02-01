@@ -25,8 +25,8 @@ class YOLO(object):
         #   验证集损失较低不代表mAP较高，仅代表该权值在验证集上泛化性能较好。
         #   如果出现shape不匹配，同时要注意训练时的model_path和classes_path参数的修改
         #--------------------------------------------------------------------------#
-        "model_path"        : 'model_data/yolov7_weights.pth',
-        "classes_path"      : 'model_data/coco_classes.txt',
+        "model_path"        : 'logs/best_epoch_weights.pth',
+        "classes_path"      : 'model_data/ssdd_classes.txt',
         #---------------------------------------------------------------------#
         #   anchors_path代表先验框对应的txt文件，一般不修改。
         #   anchors_mask用于帮助代码找到对应的先验框，一般不修改。
@@ -46,7 +46,7 @@ class YOLO(object):
         #---------------------------------------------------------------------#
         #   只有得分大于置信度的预测框会被保留下来
         #---------------------------------------------------------------------#
-        "confidence"        : 0.5,
+        "confidence"        : 0.05,
         #---------------------------------------------------------------------#
         #   非极大抑制所用到的nms_iou大小
         #---------------------------------------------------------------------#
@@ -60,7 +60,7 @@ class YOLO(object):
         #   是否使用Cuda
         #   没有GPU可以设置成False
         #-------------------------------#
-        "cuda"              : True,
+        "cuda"              : False,
     }
 
     @classmethod
@@ -148,7 +148,8 @@ class YOLO(object):
             #---------------------------------------------------------#
             #   将预测框进行堆叠，然后进行非极大抑制
             #---------------------------------------------------------#
-            results = self.bbox_util.non_max_suppression_obb(torch.cat(outputs, 1), self.confidence, self.nms_iou, classes=self.num_classes)
+            results = self.bbox_util.non_max_suppression(torch.cat(outputs, 1), self.num_classes, self.input_shape, 
+                        image_shape, self.letterbox_image, conf_thres = self.confidence, nms_thres = self.nms_iou)
                                                     
             if results[0] is None: 
                 return image
@@ -179,12 +180,10 @@ class YOLO(object):
         #---------------------------------------------------------#
         for i, c in list(enumerate(top_label)):
             predicted_class = self.class_names[int(c)]
-            poly            = top_polys[i]
+            poly            = top_polys[i].astype(np.int32)
             score           = top_conf[i]
 
-            polygon_list = [(poly[0], poly[1]), (poly[2], poly[3]), \
-                    (poly[4], poly[5]), (poly[6], poly[7])]
-
+            polygon_list = list(poly)
             label = '{} {:.2f}'.format(predicted_class, score)
             draw = ImageDraw.Draw(image)
             label_size = draw.textsize(label, font)
@@ -193,7 +192,7 @@ class YOLO(object):
             
             text_origin = np.array([poly[0], poly[1]], np.int32)
 
-            draw.polygon(xy=polygon_list, fill=(0, 0, 0), outline=self.colors[i], width=label_size)
+            draw.polygon(xy=polygon_list, outline=self.colors[c])
             draw.text(text_origin, str(label,'UTF-8'), fill=(0, 0, 0), font=font)
             del draw
 

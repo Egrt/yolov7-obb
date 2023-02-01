@@ -1,14 +1,15 @@
 import numpy as np
 import torch
+import math
 from torchvision.ops import nms
-# from utils.nms_rotated import obb_nms
+from utils.nms_rotated import obb_nms
 
 class DecodeBox():
     def __init__(self, anchors, num_classes, input_shape, anchors_mask = [[6,7,8], [3,4,5], [0,1,2]]):
         super(DecodeBox, self).__init__()
         self.anchors        = anchors
         self.num_classes    = num_classes
-        self.bbox_attrs     = 5 + 1 + num_classes
+        self.bbox_attrs     = 6 + num_classes
         self.input_shape    = input_shape
         #-----------------------------------------------------------#
         #   13x13的特征层对应的anchor是[142, 110],[192, 243],[459, 401]
@@ -62,6 +63,10 @@ class DecodeBox():
             w = torch.sigmoid(prediction[..., 2]) 
             h = torch.sigmoid(prediction[..., 3]) 
             #-----------------------------------------------#
+            #   获取旋转角度
+            #-----------------------------------------------#
+            angle       = torch.sigmoid(prediction[..., 4])
+            #-----------------------------------------------#
             #   获得置信度，是否有物体
             #-----------------------------------------------#
             conf        = torch.sigmoid(prediction[..., 5])
@@ -105,17 +110,17 @@ class DecodeBox():
             pred_boxes[..., 1]  = y.data * 2. - 0.5 + grid_y
             pred_boxes[..., 2]  = (w.data * 2) ** 2 * anchor_w
             pred_boxes[..., 3]  = (h.data * 2) ** 2 * anchor_h
-
+            pred_theta          = (angle.data - 0.5) * math.pi
             #----------------------------------------------------------#
             #   将输出结果归一化成小数的形式
             #----------------------------------------------------------#
             _scale = torch.Tensor([input_width, input_height, input_width, input_height]).type(FloatTensor)
-            output = torch.cat((pred_boxes.view(batch_size, -1, 4) / _scale,
+            output = torch.cat((pred_boxes.view(batch_size, -1, 4) / _scale, pred_theta.view(batch_size, -1, 1),
                                 conf.view(batch_size, -1, 1), pred_cls.view(batch_size, -1, self.num_classes)), -1)
             outputs.append(output.data)
         return outputs
 
-    def yolo_correct_boxes(self, box_xy, box_wh, input_shape, image_shape, letterbox_image):
+    def yolo_correct_boxes(self, box_xy, box_wh, angle, input_shape, image_shape, letterbox_image):
         #-----------------------------------------------------------------#
         #   把y轴放前面是因为方便预测框和图像的宽高进行相乘
         #-----------------------------------------------------------------#
@@ -136,23 +141,16 @@ class DecodeBox():
             box_yx  = (box_yx - offset) * scale
             box_hw *= scale
 
-        box_mins    = box_yx - (box_hw / 2.)
-        box_maxes   = box_yx + (box_hw / 2.)
-        boxes  = np.concatenate([box_mins[..., 0:1], box_mins[..., 1:2], box_maxes[..., 0:1], box_maxes[..., 1:2]], axis=-1)
-        boxes *= np.concatenate([image_shape, image_shape], axis=-1)
+        box_xy = box_yx[..., ::-1] * image_shape
+        box_wh = box_hw[..., ::-1] * image_shape
+
+        boxes  = np.concatenate([box_xy[..., 0:1], box_xy[..., 1:2], box_wh[..., 0:1], box_wh[..., 1:2], angle[..., 0:1] ], axis=-1)
         return boxes
 
     def non_max_suppression(self, prediction, num_classes, input_shape, image_shape, letterbox_image, conf_thres=0.5, nms_thres=0.4):
         #----------------------------------------------------------#
-        #   将预测结果的格式转换成左上角右下角的格式。
         #   prediction  [batch_size, num_anchors, 85]
         #----------------------------------------------------------#
-        box_corner          = prediction.new(prediction.shape)
-        box_corner[:, :, 0] = prediction[:, :, 0] - prediction[:, :, 2] / 2
-        box_corner[:, :, 1] = prediction[:, :, 1] - prediction[:, :, 3] / 2
-        box_corner[:, :, 2] = prediction[:, :, 0] + prediction[:, :, 2] / 2
-        box_corner[:, :, 3] = prediction[:, :, 1] + prediction[:, :, 3] / 2
-        prediction[:, :, :4] = box_corner[:, :, :4]
 
         output = [None for _ in range(len(prediction))]
         for i, image_pred in enumerate(prediction):
@@ -161,13 +159,12 @@ class DecodeBox():
             #   class_conf  [num_anchors, 1]    种类置信度
             #   class_pred  [num_anchors, 1]    种类
             #----------------------------------------------------------#
-            class_conf, class_pred = torch.max(image_pred[:, 5:5 + num_classes], 1, keepdim=True)
+            class_conf, class_pred = torch.max(image_pred[:, 6:6 + num_classes], 1, keepdim=True)
 
             #----------------------------------------------------------#
             #   利用置信度进行第一轮筛选
             #----------------------------------------------------------#
-            conf_mask = (image_pred[:, 4] * class_conf[:, 0] >= conf_thres).squeeze()
-
+            conf_mask = (image_pred[:, 5] * class_conf[:, 0] >= conf_thres).squeeze()
             #----------------------------------------------------------#
             #   根据置信度进行预测结果的筛选
             #----------------------------------------------------------#
@@ -177,10 +174,10 @@ class DecodeBox():
             if not image_pred.size(0):
                 continue
             #-------------------------------------------------------------------------#
-            #   detections  [num_anchors, 7]
-            #   7的内容为：x1, y1, x2, y2, obj_conf, class_conf, class_pred
+            #   detections  [num_anchors, 8]
+            #   8的内容为：x, y, w, h, angle, obj_conf, class_conf, class_pred
             #-------------------------------------------------------------------------#
-            detections = torch.cat((image_pred[:, :5], class_conf.float(), class_pred.float()), 1)
+            detections = torch.cat((image_pred[:, :6], class_conf.float(), class_pred.float()), 1)
 
             #------------------------------------------#
             #   获得预测结果中包含的所有种类
@@ -201,9 +198,9 @@ class DecodeBox():
                 #   使用官方自带的非极大抑制会速度更快一些！
                 #   筛选出一定区域内，属于同一种类得分最大的框
                 #------------------------------------------#
-                keep = nms(
-                    detections_class[:, :4],
-                    detections_class[:, 4] * detections_class[:, 5],
+                _, keep = obb_nms(
+                    detections_class[:, :5],
+                    detections_class[:, 5] * detections_class[:, 6],
                     nms_thres
                 )
                 max_detections = detections_class[keep]
@@ -227,9 +224,9 @@ class DecodeBox():
                 output[i] = max_detections if output[i] is None else torch.cat((output[i], max_detections))
             
             if output[i] is not None:
-                output[i]           = output[i].cpu().numpy()
-                box_xy, box_wh      = (output[i][:, 0:2] + output[i][:, 2:4])/2, output[i][:, 2:4] - output[i][:, 0:2]
-                output[i][:, :4]    = self.yolo_correct_boxes(box_xy, box_wh, input_shape, image_shape, letterbox_image)
+                output[i]             = output[i].cpu().numpy()
+                box_xy, box_wh, angle = output[i][:, 0:2], output[i][:, 2:4], output[i][:, 4:5]
+                output[i][:, :5]      = self.yolo_correct_boxes(box_xy, box_wh, angle, input_shape, image_shape, letterbox_image)
         return output
 
     def non_max_suppression_obb(self, prediction, conf_thres=0.25, iou_thres=0.45, classes=None, agnostic=False, multi_label=False,

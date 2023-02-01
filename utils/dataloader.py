@@ -76,7 +76,6 @@ class YoloDataset(Dataset):
             #---------------------------------------------------#
             # box[:, 2:4] = box[:, 2:4] - box[:, 0:2]
             # box[:, 0:2] = box[:, 0:2] + box[:, 2:4] / 2
-            
             #---------------------------------------------------#
             #   调整顺序，符合训练的格式
             #   labels_out中序号为0的部分在collect时处理
@@ -105,6 +104,12 @@ class YoloDataset(Dataset):
         #   获得预测框
         #------------------------------#
         box     = np.array([np.array(list(map(int,box.split(',')))) for box in line[1:]])
+        #------------------------------#
+        #   将polygon转换为rbox
+        #------------------------------#
+        rbox    = np.zeros((box.shape[0], 6))
+        rbox[..., :5] = poly2rbox(box[..., :8], (h, w), use_pi=True)
+        rbox[..., 5]  = box[..., 8]
         image   = image.resize((w,h), Image.BICUBIC)
         image_data  = np.array(image, np.float32)
         
