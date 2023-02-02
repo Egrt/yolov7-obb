@@ -11,7 +11,7 @@ from nets.yolo import YoloBody
 from utils.utils import (cvtColor, get_anchors, get_classes, preprocess_input,
                          resize_image, show_config)
 from utils.utils_bbox import DecodeBox
-from utils.utils_rbox import rbox2poly
+from utils.utils_rbox import rbox2poly, poly2hbb
 '''
 训练自己的数据集必看注释！
 '''
@@ -25,7 +25,7 @@ class YOLO(object):
         #   验证集损失较低不代表mAP较高，仅代表该权值在验证集上泛化性能较好。
         #   如果出现shape不匹配，同时要注意训练时的model_path和classes_path参数的修改
         #--------------------------------------------------------------------------#
-        "model_path"        : 'logs/best_epoch_weights.pth',
+        "model_path"        : 'model_data/ep010-loss0.039-val_loss0.032.pth',
         "classes_path"      : 'model_data/ssdd_classes.txt',
         #---------------------------------------------------------------------#
         #   anchors_path代表先验框对应的txt文件，一般不修改。
@@ -46,7 +46,7 @@ class YOLO(object):
         #---------------------------------------------------------------------#
         #   只有得分大于置信度的预测框会被保留下来
         #---------------------------------------------------------------------#
-        "confidence"        : 0.05,
+        "confidence"        : 0.3,
         #---------------------------------------------------------------------#
         #   非极大抑制所用到的nms_iou大小
         #---------------------------------------------------------------------#
@@ -55,7 +55,7 @@ class YOLO(object):
         #   该变量用于控制是否使用letterbox_image对输入图像进行不失真的resize，
         #   在多次测试后，发现关闭letterbox_image直接resize的效果更好
         #---------------------------------------------------------------------#
-        "letterbox_image"   : True,
+        "letterbox_image"   : False,
         #-------------------------------#
         #   是否使用Cuda
         #   没有GPU可以设置成False
@@ -198,7 +198,7 @@ class YOLO(object):
             text_origin = np.array([poly[0], poly[1]], np.int32)
 
             draw.polygon(xy=polygon_list, outline=self.colors[c])
-            draw.text(text_origin, str(label,'UTF-8'), fill=(0, 0, 0), font=font)
+            draw.text(text_origin, str(label,'UTF-8'), fill=self.colors[c], font=font)
             del draw
 
         return image
@@ -378,16 +378,26 @@ class YOLO(object):
             if results[0] is None: 
                 return 
 
-            top_label   = np.array(results[0][:, 6], dtype = 'int32')
-            top_conf    = results[0][:, 4] * results[0][:, 5]
-            top_boxes   = results[0][:, :4]
-
+            top_label   = np.array(results[0][:, 7], dtype = 'int32')
+            top_conf    = results[0][:, 5] * results[0][:, 6]
+            top_rboxes  = results[0][:, :5]
+            top_polys   = rbox2poly(top_rboxes)
+            #---------------------------------------------------------#
+            #   将归一化的预测结果变为真实的预测框
+            #---------------------------------------------------------#
+            top_polys[..., [0, 2, 4, 6]] *= image_shape[1]
+            top_polys[..., [1, 3, 5, 7]] *= image_shape[0]
+            top_hbbs    = poly2hbb(top_polys)
         for i, c in list(enumerate(top_label)):
             predicted_class = self.class_names[int(c)]
-            box             = top_boxes[i]
+            hbb             = top_hbbs[i]
             score           = str(top_conf[i])
 
-            top, left, bottom, right = box
+            xc, yc, w, h = hbb
+            left   = xc - w/2
+            top    = yc - h/2
+            right  = xc + w/2
+            bottom = yc + h/2
             if predicted_class not in class_names:
                 continue
 

@@ -101,8 +101,48 @@ class YoloDataset(Dataset):
         #   图像调整
         #---------------------------------#
         image       = image.resize((w,h), Image.BICUBIC)
-        image_data  = np.array(image, np.float32)
+        image_data  = np.array(image, np.uint8)
+        #------------------------------------------#
+        #   翻转图像
+        #------------------------------------------#
+        flip = self.rand()<.5
+        if flip: image = image.transpose(Image.FLIP_LEFT_RIGHT)
+        
+        image_data      = np.array(image, np.uint8)
+        #---------------------------------#
+        #   对图像进行色域变换
+        #   计算色域变换的参数
+        #---------------------------------#
+        r               = np.random.uniform(-1, 1, 3) * [hue, sat, val] + 1
+        #---------------------------------#
+        #   将图像转到HSV上
+        #---------------------------------#
+        hue, sat, val   = cv2.split(cv2.cvtColor(image_data, cv2.COLOR_RGB2HSV))
+        dtype           = image_data.dtype
+        #---------------------------------#
+        #   应用变换
+        #---------------------------------#
+        x       = np.arange(0, 256, dtype=r.dtype)
+        lut_hue = ((x * r[0]) % 180).astype(dtype)
+        lut_sat = np.clip(x * r[1], 0, 255).astype(dtype)
+        lut_val = np.clip(x * r[2], 0, 255).astype(dtype)
 
+        image_data = cv2.merge((cv2.LUT(hue, lut_hue), cv2.LUT(sat, lut_sat), cv2.LUT(val, lut_val)))
+        image_data = cv2.cvtColor(image_data, cv2.COLOR_HSV2RGB)
+        #---------------------------------#
+        #   对真实框进行调整
+        #---------------------------------#
+        if len(rbox)>0:
+            np.random.shuffle(rbox)
+            if flip: 
+                rbox[:, 0] = 1 - rbox[:, 0]
+                rbox[:, 4] *= -1
+        # 查看旋转框是否正确
+        # draw = ImageDraw.Draw(image)
+        # polys = rbox2poly(rbox[..., :5])*w
+        # for poly in polys:
+        #     draw.polygon(xy=list(poly))
+        # image.show()
         return image_data, rbox
     
     def merge_bboxes(self, bboxes, cutx, cuty):
