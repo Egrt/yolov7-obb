@@ -3,11 +3,11 @@ from random import sample, shuffle
 import cv2
 import numpy as np
 import torch
-from PIL import Image
+from PIL import Image, ImageDraw
 from torch.utils.data.dataset import Dataset
 
 from utils.utils import cvtColor, preprocess_input
-from utils.utils_rbox import poly_filter, poly2rbox
+from utils.utils_rbox import poly_filter, poly2rbox, rbox2poly
 
 class YoloDataset(Dataset):
     def __init__(self, annotation_lines, input_shape, num_classes, anchors, anchors_mask, epoch_length, \
@@ -52,36 +52,23 @@ class YoloDataset(Dataset):
                 image_2, box_2  = self.get_random_data(lines[0], self.input_shape, random = self.train)
                 image, box      = self.get_random_data_with_MixUp(image, box, image_2, box_2)
         else:
-            image, box      = self.get_random_data(self.annotation_lines[index], self.input_shape, random = self.train)
+            image, rbox      = self.get_random_data(self.annotation_lines[index], self.input_shape, random = self.train)
 
         image       = np.transpose(preprocess_input(np.array(image, dtype=np.float32)), (2, 0, 1))
-        box         = np.array(box, dtype=np.float32)
+        rbox        = np.array(rbox, dtype=np.float32)
         
         #---------------------------------------------------#
         #   对真实框进行预处理
         #---------------------------------------------------#
-        nL          = len(box)
+        nL          = len(rbox)
         labels_out  = np.zeros((nL, 7))
         if nL:
-            #---------------------------------------------------#
-            #   对真实框进行归一化，调整到0-1之间
-            #---------------------------------------------------#
-            box[:, [0, 2]] = box[:, [0, 2]] / self.input_shape[1]
-            box[:, [1, 3]] = box[:, [1, 3]] / self.input_shape[0]
-            #---------------------------------------------------#
-            #   序号为0、1的部分，为真实框的中心
-            #   序号为2、3的部分，为真实框的宽高
-            #   序号为4的部分，为真实框的旋转角度
-            #   序号为5的部分，为真实框的种类
-            #---------------------------------------------------#
-            # box[:, 2:4] = box[:, 2:4] - box[:, 0:2]
-            # box[:, 0:2] = box[:, 0:2] + box[:, 2:4] / 2
             #---------------------------------------------------#
             #   调整顺序，符合训练的格式
             #   labels_out中序号为0的部分在collect时处理
             #---------------------------------------------------#
-            labels_out[:, 1] = box[:, -1]
-            labels_out[:, 2:] = box[:, :5]
+            labels_out[:, 1]  = rbox[:, -1]
+            labels_out[:, 2:] = rbox[:, :5]
             
         return image, labels_out
 
@@ -108,11 +95,14 @@ class YoloDataset(Dataset):
         #   将polygon转换为rbox
         #------------------------------#
         rbox    = np.zeros((box.shape[0], 6))
-        rbox[..., :5] = poly2rbox(box[..., :8], (h, w), use_pi=True)
+        rbox[..., :5] = poly2rbox(box[..., :8], (ih, iw), use_pi=True)
         rbox[..., 5]  = box[..., 8]
-        image   = image.resize((w,h), Image.BICUBIC)
+        #---------------------------------#
+        #   图像调整
+        #---------------------------------#
+        image       = image.resize((w,h), Image.BICUBIC)
         image_data  = np.array(image, np.float32)
-        
+
         return image_data, rbox
     
     def merge_bboxes(self, bboxes, cutx, cuty):
