@@ -7,7 +7,7 @@ matplotlib.use('Agg')
 import scipy.signal
 from matplotlib import pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
-
+from utils.utils_rbox import rbox2poly, poly2hbb
 import shutil
 import numpy as np
 
@@ -145,21 +145,31 @@ class EvalCallback():
             if results[0] is None: 
                 return 
 
-            top_label   = np.array(results[0][:, 6], dtype = 'int32')
-            top_conf    = results[0][:, 4] * results[0][:, 5]
-            top_boxes   = results[0][:, :4]
-
+            top_label   = np.array(results[0][:, 7], dtype = 'int32')
+            top_conf    = results[0][:, 5] * results[0][:, 6]
+            top_rboxes  = results[0][:, :5]
+            top_polys   = rbox2poly(top_rboxes)
+            #---------------------------------------------------------#
+            #   将归一化的预测结果变为真实的预测框
+            #---------------------------------------------------------#
+            top_polys[..., [0, 2, 4, 6]] *= image_shape[1]
+            top_polys[..., [1, 3, 5, 7]] *= image_shape[0]
+            top_hbbs    = poly2hbb(top_polys)
         top_100     = np.argsort(top_conf)[::-1][:self.max_boxes]
-        top_boxes   = top_boxes[top_100]
+        top_hbbs    = top_hbbs[top_100]
         top_conf    = top_conf[top_100]
         top_label   = top_label[top_100]
 
         for i, c in list(enumerate(top_label)):
             predicted_class = self.class_names[int(c)]
-            box             = top_boxes[i]
+            hbb             = top_hbbs[i]
             score           = str(top_conf[i])
 
-            top, left, bottom, right = box
+            xc, yc, w, h = hbb
+            left   = xc - w/2
+            top    = yc - h/2
+            right  = xc + w/2
+            bottom = yc + h/2
             if predicted_class not in class_names:
                 continue
 
@@ -190,6 +200,12 @@ class EvalCallback():
                 #------------------------------#
                 gt_boxes    = np.array([np.array(list(map(int,box.split(',')))) for box in line[1:]])
                 #------------------------------#
+                #   将polygon转换为hbb
+                #------------------------------#
+                hbbs        = np.zeros((gt_boxes.shape[0], 6))
+                hbbs[:, :5] = poly2hbb(gt_boxes[:, :8])
+                hbbs[:, 5]  = gt_boxes[:, 8]
+                #------------------------------#
                 #   获得预测txt
                 #------------------------------#
                 self.get_map_txt(image_id, image, self.class_names, self.map_out_path)
@@ -198,8 +214,12 @@ class EvalCallback():
                 #   获得真实框txt
                 #------------------------------#
                 with open(os.path.join(self.map_out_path, "ground-truth/"+image_id+".txt"), "w") as new_f:
-                    for box in gt_boxes:
-                        left, top, right, bottom, obj = box
+                    for hbb in hbbs:
+                        xc, yc, w, h, obj = hbb
+                        left   = xc - w/2
+                        top    = yc - h/2
+                        right  = xc + w/2
+                        bottom = yc + h/2
                         obj_name = self.class_names[obj]
                         new_f.write("%s %s %s %s %s\n" % (obj_name, left, top, right, bottom))
                         
