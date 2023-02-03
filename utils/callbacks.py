@@ -79,7 +79,7 @@ class LossHistory():
 
 class EvalCallback():
     def __init__(self, net, input_shape, anchors, anchors_mask, class_names, num_classes, val_lines, log_dir, cuda, \
-            map_out_path=".temp_map_out", max_boxes=100, confidence=0.05, nms_iou=0.5, letterbox_image=True, MINOVERLAP=0.5, eval_flag=True, period=1):
+            map_out_path=".temp_map_out", max_boxes=100, confidence=0.05, nms_iou=0.5, letterbox_image=False, MINOVERLAP=0.5, eval_flag=True, period=1):
         super(EvalCallback, self).__init__()
         
         self.net                = net
@@ -202,9 +202,9 @@ class EvalCallback():
                 #------------------------------#
                 #   将polygon转换为hbb
                 #------------------------------#
-                hbbs        = np.zeros((gt_boxes.shape[0], 6))
-                hbbs[:, :5] = poly2hbb(gt_boxes[:, :8])
-                hbbs[:, 5]  = gt_boxes[:, 8]
+                hbbs        = np.zeros((gt_boxes.shape[0], 5))
+                hbbs[..., :4] = poly2hbb(gt_boxes[..., :8])
+                hbbs[..., 4]  = gt_boxes[..., 8]
                 #------------------------------#
                 #   获得预测txt
                 #------------------------------#
@@ -220,7 +220,7 @@ class EvalCallback():
                         top    = yc - h/2
                         right  = xc + w/2
                         bottom = yc + h/2
-                        obj_name = self.class_names[obj]
+                        obj_name = self.class_names[int(obj)]
                         new_f.write("%s %s %s %s %s\n" % (obj_name, left, top, right, bottom))
                         
             print("Calculate Map.")
