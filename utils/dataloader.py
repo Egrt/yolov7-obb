@@ -41,18 +41,18 @@ class YoloDataset(Dataset):
         #   训练时进行数据的随机增强
         #   验证时不进行数据的随机增强
         #---------------------------------------------------#
-        # if self.mosaic and self.rand() < self.mosaic_prob and self.epoch_now < self.epoch_length * self.special_aug_ratio:
-        lines = sample(self.annotation_lines, 3)
-        lines.append(self.annotation_lines[index])
-        shuffle(lines)
-        image, rbox  = self.get_random_data_with_Mosaic(lines, self.input_shape)
-            
-        #     if self.mixup and self.rand() < self.mixup_prob:
-        #         lines           = sample(self.annotation_lines, 1)
-        #         image_2, rbox_2  = self.get_random_data(lines[0], self.input_shape, random = self.train)
-        #         image, rbox      = self.get_random_data_with_MixUp(image, rbox, image_2, rbox_2)
-        # else:
-        #     image, rbox      = self.get_random_data(self.annotation_lines[index], self.input_shape, random = self.train)
+        if self.mosaic and self.rand() < self.mosaic_prob and self.epoch_now < self.epoch_length * self.special_aug_ratio:
+            lines = sample(self.annotation_lines, 3)
+            lines.append(self.annotation_lines[index])
+            shuffle(lines)
+            image, rbox  = self.get_random_data_with_Mosaic(lines, self.input_shape)
+                
+            if self.mixup and self.rand() < self.mixup_prob:
+                lines           = sample(self.annotation_lines, 1)
+                image_2, rbox_2  = self.get_random_data(lines[0], self.input_shape, random = self.train)
+                image, rbox      = self.get_random_data_with_MixUp(image, rbox, image_2, rbox_2)
+        else:
+            image, rbox      = self.get_random_data(self.annotation_lines[index], self.input_shape, random = self.train)
 
         image       = np.transpose(preprocess_input(np.array(image, dtype=np.float32)), (2, 0, 1))
         rbox        = np.array(rbox, dtype=np.float32)
@@ -186,11 +186,11 @@ class YoloDataset(Dataset):
                 rbox[:, 0] = 1 - rbox[:, 0]
                 rbox[:, 4] *= -1
         # 查看旋转框是否正确
-        draw = ImageDraw.Draw(image)
-        polys = rbox2poly(rbox[..., :5])*w
-        for poly in polys:
-            draw.polygon(xy=list(poly))
-        image.show()
+        # draw = ImageDraw.Draw(image)
+        # polys = rbox2poly(rbox[..., :5])*w
+        # for poly in polys:
+        #     draw.polygon(xy=list(poly))
+        # image.show()
         return image_data, rbox
     
     def merge_rboxes(self, rboxes, cutx, cuty):
