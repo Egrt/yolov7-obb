@@ -41,18 +41,18 @@ class YoloDataset(Dataset):
         #   训练时进行数据的随机增强
         #   验证时不进行数据的随机增强
         #---------------------------------------------------#
-        if self.mosaic and self.rand() < self.mosaic_prob and self.epoch_now < self.epoch_length * self.special_aug_ratio:
-            lines = sample(self.annotation_lines, 3)
-            lines.append(self.annotation_lines[index])
-            shuffle(lines)
-            image, rbox  = self.get_random_data_with_Mosaic(lines, self.input_shape)
+        # if self.mosaic and self.rand() < self.mosaic_prob and self.epoch_now < self.epoch_length * self.special_aug_ratio:
+        lines = sample(self.annotation_lines, 3)
+        lines.append(self.annotation_lines[index])
+        shuffle(lines)
+        image, rbox  = self.get_random_data_with_Mosaic(lines, self.input_shape)
             
-            if self.mixup and self.rand() < self.mixup_prob:
-                lines           = sample(self.annotation_lines, 1)
-                image_2, rbox_2  = self.get_random_data(lines[0], self.input_shape, random = self.train)
-                image, rbox      = self.get_random_data_with_MixUp(image, rbox, image_2, rbox_2)
-        else:
-            image, rbox      = self.get_random_data(self.annotation_lines[index], self.input_shape, random = self.train)
+        #     if self.mixup and self.rand() < self.mixup_prob:
+        #         lines           = sample(self.annotation_lines, 1)
+        #         image_2, rbox_2  = self.get_random_data(lines[0], self.input_shape, random = self.train)
+        #         image, rbox      = self.get_random_data_with_MixUp(image, rbox, image_2, rbox_2)
+        # else:
+        #     image, rbox      = self.get_random_data(self.annotation_lines[index], self.input_shape, random = self.train)
 
         image       = np.transpose(preprocess_input(np.array(image, dtype=np.float32)), (2, 0, 1))
         rbox        = np.array(rbox, dtype=np.float32)
@@ -193,51 +193,20 @@ class YoloDataset(Dataset):
         image.show()
         return image_data, rbox
     
-    def merge_bboxes(self, bboxes, cutx, cuty):
-        merge_bbox = []
-        for i in range(len(bboxes)):
-            for box in bboxes[i]:
-                tmp_box = []
-                x1, y1, x2, y2 = box[0], box[1], box[2], box[3]
-
-                if i == 0:
-                    if y1 > cuty or x1 > cutx:
-                        continue
-                    if y2 >= cuty and y1 <= cuty:
-                        y2 = cuty
-                    if x2 >= cutx and x1 <= cutx:
-                        x2 = cutx
-
-                if i == 1:
-                    if y2 < cuty or x1 > cutx:
-                        continue
-                    if y2 >= cuty and y1 <= cuty:
-                        y1 = cuty
-                    if x2 >= cutx and x1 <= cutx:
-                        x2 = cutx
-
-                if i == 2:
-                    if y2 < cuty or x2 < cutx:
-                        continue
-                    if y2 >= cuty and y1 <= cuty:
-                        y1 = cuty
-                    if x2 >= cutx and x1 <= cutx:
-                        x1 = cutx
-
-                if i == 3:
-                    if y1 > cuty or x2 < cutx:
-                        continue
-                    if y2 >= cuty and y1 <= cuty:
-                        y2 = cuty
-                    if x2 >= cutx and x1 <= cutx:
-                        x1 = cutx
-                tmp_box.append(x1)
-                tmp_box.append(y1)
-                tmp_box.append(x2)
-                tmp_box.append(y2)
-                tmp_box.append(box[-1])
-                merge_bbox.append(tmp_box)
-        return merge_bbox
+    def merge_rboxes(self, rboxes, cutx, cuty):
+        merge_rbox = []
+        for i in range(len(rboxes)):
+            for rbox in rboxes[i]:
+                tmp_rbox = []
+                xc, yc, w, h = rbox[0], rbox[1], rbox[2], rbox[3]
+                tmp_rbox.append(xc)
+                tmp_rbox.append(yc)
+                tmp_rbox.append(h)
+                tmp_rbox.append(w)
+                tmp_rbox.append(rbox[-1])
+                merge_rbox.append(rbox)
+        merge_rbox = np.array(merge_rbox)
+        return merge_rbox
 
     def get_random_data_with_Mosaic(self, annotation_line, input_shape, jitter=0.3, hue=.1, sat=0.7, val=0.4):
         h, w = input_shape
@@ -245,7 +214,7 @@ class YoloDataset(Dataset):
         min_offset_y = self.rand(0.3, 0.7)
 
         image_datas = [] 
-        box_datas   = []
+        rbox_datas  = []
         index       = 0
         for line in annotation_line:
             #---------------------------------#
@@ -314,25 +283,21 @@ class YoloDataset(Dataset):
             image_data = np.array(new_image)
 
             index = index + 1
-            box_data = []
+            rbox_data = []
             #---------------------------------#
-            #   对box进行重新处理
+            #   对rbox进行重新处理
             #---------------------------------#
-            if len(box)>0:
-                np.random.shuffle(box)
-                box[:, [0,2]] = box[:, [0,2]]*nw/iw + dx
-                box[:, [1,3]] = box[:, [1,3]]*nh/ih + dy
-                box[:, 0:2][box[:, 0:2]<0] = 0
-                box[:, 2][box[:, 2]>w] = w
-                box[:, 3][box[:, 3]>h] = h
-                box_w = box[:, 2] - box[:, 0]
-                box_h = box[:, 3] - box[:, 1]
-                box = box[np.logical_and(box_w>1, box_h>1)]
-                box_data = np.zeros((len(box),5))
-                box_data[:len(box)] = box
+            if len(rbox)>0:
+                np.random.shuffle(rbox)
+                rbox[:, 0] = rbox[:, 0]*nw/w + dx/w
+                rbox[:, 1] = rbox[:, 1]*nh/h + dy/h
+                rbox[:, 2] = rbox[:, 2]*nw/w
+                rbox[:, 3] = rbox[:, 3]*nh/h
+                rbox_data = np.zeros((len(rbox),6))
+                rbox_data[:len(rbox)] = rbox
             
             image_datas.append(image_data)
-            box_datas.append(box_data)
+            rbox_datas.append(rbox_data)
 
         #---------------------------------#
         #   将图片分割，放在一起
@@ -371,9 +336,15 @@ class YoloDataset(Dataset):
         #---------------------------------#
         #   对框进行进一步的处理
         #---------------------------------#
-        new_boxes = self.merge_bboxes(box_datas, cutx, cuty)
-
-        return new_image, new_boxes
+        new_rboxes = self.merge_rboxes(rbox_datas, cutx, cuty)
+        # 查看旋转框是否正确
+        # newImage   = Image.fromarray(new_image) 
+        # draw = ImageDraw.Draw(newImage)
+        # polys = rbox2poly(new_rboxes[..., :5])*w
+        # for poly in polys:
+        #     draw.polygon(xy=list(poly))
+        # newImage.show()
+        return new_image, new_rboxes
 
     def get_random_data_with_MixUp(self, image_1, rbox_1, image_2, rbox_2):
         new_image = np.array(image_1, np.float32) * 0.5 + np.array(image_2, np.float32) * 0.5
