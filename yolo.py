@@ -25,7 +25,7 @@ class YOLO(object):
         #   验证集损失较低不代表mAP较高，仅代表该权值在验证集上泛化性能较好。
         #   如果出现shape不匹配，同时要注意训练时的model_path和classes_path参数的修改
         #--------------------------------------------------------------------------#
-        "model_path"        : 'model_data/ep010-loss0.039-val_loss0.032.pth',
+        "model_path"        : 'model_data/ep100-loss0.022-val_loss0.034.pth',
         "classes_path"      : 'model_data/ssdd_classes.txt',
         #---------------------------------------------------------------------#
         #   anchors_path代表先验框对应的txt文件，一般不修改。
@@ -157,12 +157,9 @@ class YOLO(object):
             top_label   = np.array(results[0][:, 7], dtype = 'int32')
             top_conf    = results[0][:, 5] * results[0][:, 6]
             top_rboxes  = results[0][:, :5]
+            top_rboxes[:, [0, 2]]  *= image_shape[1]
+            top_rboxes[:, [1, 3]]  *= image_shape[0]
             top_polys   = rbox2poly(top_rboxes)
-            #---------------------------------------------------------#
-            #   将归一化的预测结果变为真实的预测框
-            #---------------------------------------------------------#
-            top_polys[..., [0, 2, 4, 6]] *= image_shape[1]
-            top_polys[..., [1, 3, 5, 7]] *= image_shape[0]
         #---------------------------------------------------------#
         #   设置字体与边框厚度
         #---------------------------------------------------------#
@@ -381,12 +378,9 @@ class YOLO(object):
             top_label   = np.array(results[0][:, 7], dtype = 'int32')
             top_conf    = results[0][:, 5] * results[0][:, 6]
             top_rboxes  = results[0][:, :5]
+            top_rboxes[:, [0, 2]]  *= image_shape[1]
+            top_rboxes[:, [1, 3]]  *= image_shape[0]
             top_polys   = rbox2poly(top_rboxes)
-            #---------------------------------------------------------#
-            #   将归一化的预测结果变为真实的预测框
-            #---------------------------------------------------------#
-            top_polys[..., [0, 2, 4, 6]] *= image_shape[1]
-            top_polys[..., [1, 3, 5, 7]] *= image_shape[0]
             top_hbbs    = poly2hbb(top_polys)
         for i, c in list(enumerate(top_label)):
             predicted_class = self.class_names[int(c)]

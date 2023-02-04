@@ -45,12 +45,12 @@ class YoloDataset(Dataset):
             lines = sample(self.annotation_lines, 3)
             lines.append(self.annotation_lines[index])
             shuffle(lines)
-            image, box  = self.get_random_data_with_Mosaic(lines, self.input_shape)
+            image, rbox  = self.get_random_data_with_Mosaic(lines, self.input_shape)
             
             if self.mixup and self.rand() < self.mixup_prob:
                 lines           = sample(self.annotation_lines, 1)
-                image_2, box_2  = self.get_random_data(lines[0], self.input_shape, random = self.train)
-                image, box      = self.get_random_data_with_MixUp(image, box, image_2, box_2)
+                image_2, rbox_2  = self.get_random_data(lines[0], self.input_shape, random = self.train)
+                image, rbox      = self.get_random_data_with_MixUp(image, rbox, image_2, rbox_2)
         else:
             image, rbox      = self.get_random_data(self.annotation_lines[index], self.input_shape, random = self.train)
 
@@ -97,11 +97,55 @@ class YoloDataset(Dataset):
         rbox    = np.zeros((box.shape[0], 6))
         rbox[..., :5] = poly2rbox(box[..., :8], (ih, iw), use_pi=True)
         rbox[..., 5]  = box[..., 8]
-        #---------------------------------#
-        #   图像调整
-        #---------------------------------#
-        image       = image.resize((w,h), Image.BICUBIC)
-        image_data  = np.array(image, np.uint8)
+
+        if not random:
+            scale = min(w/iw, h/ih)
+            nw = int(iw*scale)
+            nh = int(ih*scale)
+            dx = (w-nw)//2
+            dy = (h-nh)//2
+
+            #---------------------------------#
+            #   将图像多余的部分加上灰条
+            #---------------------------------#
+            image       = image.resize((nw,nh), Image.BICUBIC)
+            new_image   = Image.new('RGB', (w,h), (128,128,128))
+            new_image.paste(image, (dx, dy))
+            image_data  = np.array(new_image, np.float32)
+
+            #---------------------------------#
+            #   对真实框进行调整
+            #---------------------------------#
+            if len(rbox)>0:
+                np.random.shuffle(rbox)
+                rbox[:, 0] = rbox[:, 0]*nw/w + dx/w
+                rbox[:, 1] = rbox[:, 1]*nh/h + dy/h
+                rbox[:, 2] = rbox[:, 2]*nw/w
+                rbox[:, 3] = rbox[:, 3]*nh/h
+
+            return image_data, rbox
+
+        #------------------------------------------#
+        #   对图像进行缩放并且进行长和宽的扭曲
+        #------------------------------------------#
+        new_ar = iw/ih * self.rand(1-jitter,1+jitter) / self.rand(1-jitter,1+jitter)
+        scale = self.rand(.25, 2)
+        if new_ar < 1:
+            nh = int(scale*h)
+            nw = int(nh*new_ar)
+        else:
+            nw = int(scale*w)
+            nh = int(nw/new_ar)
+        image = image.resize((nw,nh), Image.BICUBIC)
+
+        #------------------------------------------#
+        #   将图像多余的部分加上灰条
+        #------------------------------------------#
+        dx = int(self.rand(0, w-nw))
+        dy = int(self.rand(0, h-nh))
+        new_image = Image.new('RGB', (w,h), (128,128,128))
+        new_image.paste(image, (dx, dy))
+        image = new_image
         #------------------------------------------#
         #   翻转图像
         #------------------------------------------#
@@ -134,15 +178,19 @@ class YoloDataset(Dataset):
         #---------------------------------#
         if len(rbox)>0:
             np.random.shuffle(rbox)
+            rbox[:, 0] = rbox[:, 0]*nw/w + dx/w
+            rbox[:, 1] = rbox[:, 1]*nh/h + dy/h
+            rbox[:, 2] = rbox[:, 2]*nw/w
+            rbox[:, 3] = rbox[:, 3]*nh/h
             if flip: 
                 rbox[:, 0] = 1 - rbox[:, 0]
                 rbox[:, 4] *= -1
         # 查看旋转框是否正确
-        # draw = ImageDraw.Draw(image)
-        # polys = rbox2poly(rbox[..., :5])*w
-        # for poly in polys:
-        #     draw.polygon(xy=list(poly))
-        # image.show()
+        draw = ImageDraw.Draw(image)
+        polys = rbox2poly(rbox[..., :5])*w
+        for poly in polys:
+            draw.polygon(xy=list(poly))
+        image.show()
         return image_data, rbox
     
     def merge_bboxes(self, bboxes, cutx, cuty):
@@ -218,15 +266,20 @@ class YoloDataset(Dataset):
             #   保存框的位置
             #---------------------------------#
             box = np.array([np.array(list(map(int,box.split(',')))) for box in line_content[1:]])
-            
+            #------------------------------#
+            #   将polygon转换为rbox
+            #------------------------------#
+            rbox    = np.zeros((box.shape[0], 6))
+            rbox[..., :5] = poly2rbox(box[..., :8], (ih, iw), use_pi=True)
+            rbox[..., 5]  = box[..., 8]
             #---------------------------------#
             #   是否翻转图片
             #---------------------------------#
             flip = self.rand()<.5
-            if flip and len(box)>0:
+            if flip and len(rbox)>0:
                 image = image.transpose(Image.FLIP_LEFT_RIGHT)
-                box[:, [0,2]] = iw - box[:, [2,0]]
-
+                rbox[:, 0] = 1 - rbox[:, 0]
+                rbox[:, 4] *= -1
             #------------------------------------------#
             #   对图像进行缩放并且进行长和宽的扭曲
             #------------------------------------------#
@@ -322,15 +375,21 @@ class YoloDataset(Dataset):
 
         return new_image, new_boxes
 
-    def get_random_data_with_MixUp(self, image_1, box_1, image_2, box_2):
+    def get_random_data_with_MixUp(self, image_1, rbox_1, image_2, rbox_2):
         new_image = np.array(image_1, np.float32) * 0.5 + np.array(image_2, np.float32) * 0.5
-        if len(box_1) == 0:
-            new_boxes = box_2
-        elif len(box_2) == 0:
-            new_boxes = box_1
+        if len(rbox_1) == 0:
+            new_rboxes = rbox_2
+        elif len(rbox_2) == 0:
+            new_rboxes = rbox_1
         else:
-            new_boxes = np.concatenate([box_1, box_2], axis=0)
-        return new_image, new_boxes
+            new_rboxes = np.concatenate([rbox_1, rbox_2], axis=0)
+        # 查看旋转框是否正确
+        draw = ImageDraw.Draw(new_image)
+        polys = rbox2poly(new_rboxes[..., :5])*640
+        for poly in polys:
+            draw.polygon(xy=list(poly))
+        new_image.show()
+        return new_image, new_rboxes
     
     
 # DataLoader中collate_fn使用
