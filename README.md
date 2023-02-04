@@ -1,4 +1,4 @@
-## YOLOV7：You Only Look Once目标检测模型在pytorch当中的实现
+## YOLOV7-OBB：You Only Look Once OBB旋转目标检测模型在pytorch当中的实现
 ---
 
 ## 目录
@@ -13,10 +13,10 @@
 9. [参考资料 Reference](#Reference)
 
 ## Top News
-**`2022-07`**:**仓库创建，支持step、cos学习率下降法、支持adam、sgd优化器选择、支持学习率根据batch_size自适应调整、新增图片裁剪、支持多GPU训练、支持各个种类目标数量计算、支持heatmap、支持EMA。**  
+**`2023-02`**:**仓库创建，支持step、cos学习率下降法、支持adam、sgd优化器选择、支持学习率根据batch_size自适应调整、新增图片裁剪、支持多GPU训练、支持各个种类目标数量计算、支持heatmap、支持EMA。**  
 
 ## 相关仓库
-| 模型 | 路径 |
+| 目标检测模型 | 路径 |
 | :----- | :----- |
 YoloV3 | https://github.com/bubbliiiing/yolo3-pytorch  
 Efficientnet-Yolo3 | https://github.com/bubbliiiing/efficientnet-yolo3-pytorch  
@@ -28,25 +28,23 @@ YoloV5-V6.1 | https://github.com/bubbliiiing/yolov5-v6.1-pytorch
 YoloX | https://github.com/bubbliiiing/yolox-pytorch
 YoloV7 | https://github.com/bubbliiiing/yolov7-pytorch
 YoloV7-tiny | https://github.com/bubbliiiing/yolov7-tiny-pytorch
+YoloV7-OBB | https://github.com/Egrt/yolov7-obb
 
 ## 性能情况
-| 训练数据集 | 权值文件名称 | 测试数据集 | 输入图片大小 | mAP 0.5:0.95 | mAP 0.5 |
-| :-----: | :-----: | :------: | :------: | :------: | :-----: |
-| COCO-Train2017 | [yolov7_weights.pth](https://github.com/bubbliiiing/yolov7-pytorch/releases/download/v1.0/yolov7_weights.pth) | COCO-Val2017 | 640x640 | 50.7 | 69.2
-| COCO-Train2017 | [yolov7_x_weights.pth](https://github.com/bubbliiiing/yolov7-pytorch/releases/download/v1.0/yolov7_x_weights.pth) | COCO-Val2017 | 640x640 | 52.4 | 70.5
-
+| 训练数据集 | 权值文件名称 | 测试数据集 | 输入图片大小 | mAP 0.5 |
+| :-----: | :-----: | :------: | :------: | :------: |
+| SSDD | [yolov7_weights.pth](https://github.com/bubbliiiing/yolov7-pytorch/releases/download/v1.0/yolov7_weights.pth) | SSDD-Val | 640x640 | 85.4
+### 预测结果展示
+![预测结果](img/test.jpg)
 ## 所需环境
 torch==1.2.0    
 为了使用amp混合精度，推荐使用torch1.7.1以上的版本。
 
 ## 文件下载
-训练所需的权值可在百度网盘中下载。  
-链接: https://pan.baidu.com/s/1uYpjWC1uOo3Q-klpUEy9LQ     
-提取码: pmua    
 
-VOC数据集下载地址如下，里面已经包括了训练集、测试集、验证集（与测试集一样），无需再次划分：  
-链接: https://pan.baidu.com/s/19Mw2u_df_nBzsC2lg20fQA    
-提取码: j5ge   
+SSDD数据集下载地址如下，里面已经包括了训练集、测试集、验证集（与测试集一样），无需再次划分：  
+链接: https://pan.baidu.com/s/1vCAt9EuK3xJ_QiBdbcbHT   
+提取码: seqb  
 
 ## 训练步骤
 ### a、训练VOC07+12数据集
@@ -55,6 +53,7 @@ VOC数据集下载地址如下，里面已经包括了训练集、测试集、�
 
 2. 数据集的处理   
 修改voc_annotation.py里面的annotation_mode=2，运行voc_annotation.py生成根目录下的2007_train.txt和2007_val.txt。   
+生成的数据集格式为image_path, x1, y1, x2, y2, x3, y3, x4, y4(polygon), class。 
 
 3. 开始网络训练   
 train.py的默认参数用于训练VOC数据集，直接运行train.py即可开始训练。   
@@ -173,3 +172,4 @@ img/street.jpg
 
 ## Reference
 https://github.com/WongKinYiu/yolov7
+https://github.com/bubbliiiing/yolov7-pytorch
