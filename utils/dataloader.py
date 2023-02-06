@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw
 from torch.utils.data.dataset import Dataset
 
 from utils.utils import cvtColor, preprocess_input
-from utils.utils_rbox import poly_filter, poly2rbox, rbox2poly
+from utils.utils_rbox import poly2rbox, rbox2poly
 
 class YoloDataset(Dataset):
     def __init__(self, annotation_lines, input_shape, num_classes, anchors, anchors_mask, epoch_length, \
@@ -64,6 +64,12 @@ class YoloDataset(Dataset):
         labels_out  = np.zeros((nL, 7))
         if nL:
             #---------------------------------------------------#
+            #   对真实框进行归一化，调整到0-1之间
+            #---------------------------------------------------#
+            rbox[:, [0, 2]] = rbox[:, [0, 2]] / self.input_shape[1]
+            rbox[:, [1, 3]] = rbox[:, [1, 3]] / self.input_shape[0]
+            #---------------------------------------------------#
+            #---------------------------------------------------#
             #   调整顺序，符合训练的格式
             #   labels_out中序号为0的部分在collect时处理
             #---------------------------------------------------#
@@ -95,7 +101,7 @@ class YoloDataset(Dataset):
         #   将polygon转换为rbox
         #------------------------------#
         rbox    = np.zeros((box.shape[0], 6))
-        rbox[..., :5] = poly2rbox(box[..., :8], (ih, iw), use_pi=True)
+        rbox[..., :5] = poly2rbox(box[..., :8], use_pi=True)
         rbox[..., 5]  = box[..., 8]
 
         if not random:
@@ -118,10 +124,14 @@ class YoloDataset(Dataset):
             #---------------------------------#
             if len(rbox)>0:
                 np.random.shuffle(rbox)
-                rbox[:, 0] = rbox[:, 0]*nw/w + dx/w
-                rbox[:, 1] = rbox[:, 1]*nh/h + dy/h
-                rbox[:, 2] = rbox[:, 2]*nw/w
-                rbox[:, 3] = rbox[:, 3]*nh/h
+                rbox[:, 0] = rbox[:, 0]*nw/iw + dx
+                rbox[:, 1] = rbox[:, 1]*nh/ih + dy
+                rbox[:, 2] = rbox[:, 2]*nw/iw
+                rbox[:, 3] = rbox[:, 3]*nh/ih
+                keep = (rbox[:, 0] >= 0) & (rbox[:, 0] < w) \
+                        & (rbox[:, 1] >= 0) & (rbox[:, 0] < h) \
+                        & (rbox[:, 2] > 5) | (rbox[:, 3] > 5)
+                rbox = rbox[keep]
 
             return image_data, rbox
 
@@ -178,16 +188,20 @@ class YoloDataset(Dataset):
         #---------------------------------#
         if len(rbox)>0:
             np.random.shuffle(rbox)
-            rbox[:, 0] = rbox[:, 0]*nw/w + dx/w
-            rbox[:, 1] = rbox[:, 1]*nh/h + dy/h
-            rbox[:, 2] = rbox[:, 2]*nw/w
-            rbox[:, 3] = rbox[:, 3]*nh/h
+            rbox[:, 0] = rbox[:, 0]*nw/iw + dx
+            rbox[:, 1] = rbox[:, 1]*nh/ih + dy
+            rbox[:, 2] = rbox[:, 2]*nw/iw
+            rbox[:, 3] = rbox[:, 3]*nh/ih
             if flip: 
-                rbox[:, 0] = 1 - rbox[:, 0]
+                rbox[:, 0] = w - rbox[:, 0]
                 rbox[:, 4] *= -1
+            keep = (rbox[:, 0] >= 0) & (rbox[:, 0] < w) \
+                    & (rbox[:, 1] >= 0) & (rbox[:, 0] < h) \
+                    & (rbox[:, 2] > 5) | (rbox[:, 3] > 5)
+            rbox = rbox[keep]
         # 查看旋转框是否正确
         # draw = ImageDraw.Draw(image)
-        # polys = rbox2poly(rbox[..., :5])*w
+        # polys = rbox2poly(rbox[..., :5])
         # for poly in polys:
         #     draw.polygon(xy=list(poly))
         # image.show()
@@ -239,7 +253,7 @@ class YoloDataset(Dataset):
             #   将polygon转换为rbox
             #------------------------------#
             rbox    = np.zeros((box.shape[0], 6))
-            rbox[..., :5] = poly2rbox(box[..., :8], (ih, iw), use_pi=True)
+            rbox[..., :5] = poly2rbox(box[..., :8], use_pi=True)
             rbox[..., 5]  = box[..., 8]
             #---------------------------------#
             #   是否翻转图片
@@ -247,7 +261,7 @@ class YoloDataset(Dataset):
             flip = self.rand()<.5
             if flip and len(rbox)>0:
                 image = image.transpose(Image.FLIP_LEFT_RIGHT)
-                rbox[:, 0] = 1 - rbox[:, 0]
+                rbox[:, 0] = iw - rbox[:, 0]
                 rbox[:, 4] *= -1
             #------------------------------------------#
             #   对图像进行缩放并且进行长和宽的扭曲
@@ -289,10 +303,14 @@ class YoloDataset(Dataset):
             #---------------------------------#
             if len(rbox)>0:
                 np.random.shuffle(rbox)
-                rbox[:, 0] = rbox[:, 0]*nw/w + dx/w
-                rbox[:, 1] = rbox[:, 1]*nh/h + dy/h
-                rbox[:, 2] = rbox[:, 2]*nw/w
-                rbox[:, 3] = rbox[:, 3]*nh/h
+                rbox[:, 0] = rbox[:, 0]*nw/iw + dx
+                rbox[:, 1] = rbox[:, 1]*nh/ih + dy
+                rbox[:, 2] = rbox[:, 2]*nw/iw
+                rbox[:, 3] = rbox[:, 3]*nh/ih
+                keep = (rbox[:, 0] >= 0) & (rbox[:, 0] < w) \
+                        & (rbox[:, 1] >= 0) & (rbox[:, 0] < h) \
+                        & (rbox[:, 2] > 5) | (rbox[:, 3] > 5)
+                rbox = rbox[keep]
                 rbox_data = np.zeros((len(rbox),6))
                 rbox_data[:len(rbox)] = rbox
             
@@ -340,7 +358,7 @@ class YoloDataset(Dataset):
         # 查看旋转框是否正确
         # newImage   = Image.fromarray(new_image) 
         # draw = ImageDraw.Draw(newImage)
-        # polys = rbox2poly(new_rboxes[..., :5])*w
+        # polys = rbox2poly(new_rboxes[..., :5])
         # for poly in polys:
         #     draw.polygon(xy=list(poly))
         # newImage.show()
@@ -354,12 +372,6 @@ class YoloDataset(Dataset):
             new_rboxes = rbox_1
         else:
             new_rboxes = np.concatenate([rbox_1, rbox_2], axis=0)
-        # 查看旋转框是否正确
-        draw = ImageDraw.Draw(new_image)
-        polys = rbox2poly(new_rboxes[..., :5])*640
-        for poly in polys:
-            draw.polygon(xy=list(poly))
-        new_image.show()
         return new_image, new_rboxes
     
     

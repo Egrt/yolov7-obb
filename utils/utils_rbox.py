@@ -2,7 +2,7 @@
 Author: [egrt]
 Date: 2023-01-30 19:00:28
 LastEditors: [egrt]
-LastEditTime: 2023-01-30 19:34:35
+LastEditTime: 2023-02-06 20:34:05
 Description: Oriented Bounding Boxes utils
 '''
 
@@ -41,7 +41,7 @@ def regular_theta(theta, mode='180', start=-pi/2):
     theta = theta % cycle
     return theta + start
 
-def poly2rbox(polys, img_size=(), num_cls_thata=180, radius=6.0, use_pi=False, use_gaussian=False):
+def poly2rbox(polys, num_cls_thata=180, radius=6.0, use_pi=False, use_gaussian=False):
     """
     Trans poly format to rbox format.
     Args:
@@ -49,72 +49,6 @@ def poly2rbox(polys, img_size=(), num_cls_thata=180, radius=6.0, use_pi=False, u
         num_cls_thata (int): [1], theta class num
         radius (float32): [1], window radius for Circular Smooth Label
         use_pi (bool): True θ∈[-pi/2, pi/2) ， False θ∈[0, 180)
-
-    Returns:
-        use_gaussian True:
-            rboxes (array): 
-            csl_labels (array): (num_gts, num_cls_thata)
-        elif 
-            rboxes (array): (num_gts, [cx cy l s θ]) 
-    """
-    assert polys.shape[-1] == 8
-    img_h, img_w = img_size[0], img_size[1]
-    if use_gaussian:
-        csl_labels = []
-    rboxes = []
-    for poly in polys:
-        poly = np.float32(poly.reshape(4, 2))
-        (x, y), (w, h), angle = cv2.minAreaRect(poly) # θ ∈ [0， 90] # opencv>=4.5.1 若是＜ -90到0
-        angle = -angle # θ ∈ [-90， 0] # 故 rbbox2poly 中 角度再 负 了一次  定义是 ccw 逆时针 
-        # # 两者的闭集位置进行了调换，所以在边界角度处的转换和非边界角度处的转换越有所不同。
-        # if angle >= 90:
-        #     angle = angle - 180
-        # else:
-        #     w, h = h, w
-        #     angle = angle -90
-        theta = angle / 180 * pi # 转为pi制
-
-        # trans opencv format to longedge format θ ∈ [-pi/2， pi/2]
-        if w != max(w, h): 
-            x = x / img_w
-            y = y / img_h
-
-            w, h = h, w
-            w = w / img_h
-            h = h / img_w
-            theta += pi/2
-            
-        else:
-            w = w / img_w
-            h = h / img_h
-            
-            x = x / img_w
-            y = y / img_h
-
-        theta = regular_theta(theta) # limit theta ∈ [-pi/2, pi/2)
-        angle = (theta * 180 / pi) + 90 # θ ∈ [0， 180)
-
-        if not use_pi: # 采用angle弧度制 θ ∈ [0， 180)
-            rboxes.append([x, y, w, h, angle])
-        else: # 采用pi制
-            rboxes.append([x, y, w, h, theta])
-        if use_gaussian:
-            csl_label = gaussian_label_cpu(label=angle, num_class=num_cls_thata, u=0, sig=radius)
-            csl_labels.append(csl_label)
-    if use_gaussian:
-        return np.array(rboxes), np.array(csl_labels)
-    return np.array(rboxes)
-
-
-def poly2rbox_new(polys, num_cls_thata=5,angle_w=36, radius=6.0, use_pi=False, use_gaussian=False):
-    """
-    Trans poly format to rbox format.
-    Args:
-        polys (array): (num_gts, [x1 y1 x2 y2 x3 y3 x4 y4]) 
-        num_cls_thata (int): [1], theta class num
-        radius (float32): [1], window radius for Circular Smooth Label
-        use_pi (bool): True θ∈[-pi/2, pi/2) ， False θ∈[0, 180)
-
     Returns:
         use_gaussian True:
             rboxes (array): 
@@ -128,14 +62,8 @@ def poly2rbox_new(polys, num_cls_thata=5,angle_w=36, radius=6.0, use_pi=False, u
     rboxes = []
     for poly in polys:
         poly = np.float32(poly.reshape(4, 2))
-        (x, y), (w, h), angle = cv2.minAreaRect(poly) # θ ∈ [0， 90] # opencv>=4.5.1 若是＜ -90到0
-        angle = -angle # θ ∈ [-90， 0] # 故 rbbox2poly 中 角度再 负 了一次
-        # # 两者的闭集位置进行了调换，所以在边界角度处的转换和非边界角度处的转换越有所不同。
-        # if angle >= 90:
-        #     angle = angle - 180
-        # else:
-        #     w, h = h, w
-        #     angle = angle -90
+        (x, y), (w, h), angle = cv2.minAreaRect(poly) # θ ∈ [0， 90]
+        angle = -angle # θ ∈ [-90， 0]
         theta = angle / 180 * pi # 转为pi制
 
         # trans opencv format to longedge format θ ∈ [-pi/2， pi/2]
@@ -143,11 +71,6 @@ def poly2rbox_new(polys, num_cls_thata=5,angle_w=36, radius=6.0, use_pi=False, u
             w, h = h, w
             theta += pi/2
         theta = regular_theta(theta) # limit theta ∈ [-pi/2, pi/2)
-        # while not pi / 2 > theta >= -pi / 2:
-        #     if theta >= pi / 2:
-        #         theta -= pi
-        #     else:
-        #         theta += pi
         angle = (theta * 180 / pi) + 90 # θ ∈ [0， 180)
 
         if not use_pi: # 采用angle弧度制 θ ∈ [0， 180)
@@ -160,9 +83,7 @@ def poly2rbox_new(polys, num_cls_thata=5,angle_w=36, radius=6.0, use_pi=False, u
     if use_gaussian:
         return np.array(rboxes), np.array(csl_labels)
     return np.array(rboxes)
-
-
-
+    
 def rbox2poly(obboxes):
     """
     Trans rbox format to poly format.
@@ -259,8 +180,3 @@ def poly_filter(polys, h, w):
     x_ctr, y_ctr = (x_max + x_min) / 2.0, (y_max + y_min) / 2.0 # (num)
     keep_masks = (x_ctr > 0) & (x_ctr < w) & (y_ctr > 0) & (y_ctr < h) 
     return keep_masks
-
-if __name__ == "__main__":
-    #print(np.pi)
-    poly = np.array([[204., 197., 273., 154., 290., 170., 217., 218.]])
-    print(poly2rbox_new(poly,use_pi=True))
