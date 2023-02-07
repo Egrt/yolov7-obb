@@ -122,7 +122,7 @@ if __name__ == "__main__":
             image_ids = open(os.path.join(VOCdevkit_path, 'VOC%s/ImageSets/Main/%s.txt'%(year, image_set)), encoding='utf-8').read().strip().split()
             list_file = open('%s_%s.txt'%(year, image_set), 'w', encoding='utf-8')
             for image_id in image_ids:
-                list_file.write('%s/VOC%s/JPEGImages/%s.jpg'%(os.path.abspath(VOCdevkit_path), year, image_id))
+                list_file.write('%s/VOC%s/JPEGImages/%s.bmp'%(os.path.abspath(VOCdevkit_path), year, image_id))
 
                 convert_annotation(year, image_id, list_file)
                 list_file.write('\n')
