@@ -195,7 +195,7 @@ class EvalCallback():
                 #------------------------------#
                 #   获得预测框
                 #------------------------------#
-                gt_boxes    = np.array([np.array(list(map(int,box.split(',')))) for box in line[1:]])
+                gt_boxes    = np.array([np.array(list(map(float,box.split(',')))) for box in line[1:]])
                 #------------------------------#
                 #   将polygon转换为hbb
                 #------------------------------#
