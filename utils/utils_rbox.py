@@ -2,130 +2,75 @@
 Author: [egrt]
 Date: 2023-01-30 19:00:28
 LastEditors: [egrt]
-LastEditTime: 2023-02-06 20:34:05
+LastEditTime: 2023-02-07 17:15:56
+Description: Oriented Bounding Boxes utils
+'''
+
+'''
+Author: [egrt]
+Date: 2023-01-30 19:00:28
+LastEditors: Egrt
+LastEditTime: 2023-02-07 14:39:16
 Description: Oriented Bounding Boxes utils
 '''
 
 import numpy as np
+import math
 pi = np.pi 
 import cv2
 import torch
 
-def gaussian_label_cpu(label, num_class, u=0, sig=4.0):
-    """
-    转换成CSL Labels：
-        用高斯窗口函数根据角度θ的周期性赋予gt labels同样的周期性，使得损失函数在计算边界处时可以做到“差值很大但loss很小”；
-        并且使得其labels具有环形特征，能够反映各个θ之间的角度距离
-    Args:
-        label (float32):[1], theta class
-        num_theta_class (int): [1], theta class num
-        u (float32):[1], μ in gaussian function
-        sig (float32):[1], σ in gaussian function, which is window radius for Circular Smooth Label
-    Returns:
-        csl_label (array): [num_theta_class], gaussian function smooth label
-    """
-    x = np.arange(-num_class/2, num_class/2)
-    y_sig = np.exp(-(x - u) ** 2 / (2 * sig ** 2))
-    index = int(num_class/2 - label)
-    return np.concatenate([y_sig[index:], 
-                           y_sig[:index]], axis=0)
-
-def regular_theta(theta, mode='180', start=-pi/2):
-    """
-    limit theta ∈ [-pi/2, pi/2)
-    """
-    assert mode in ['360', '180']
-    cycle = 2 * pi if mode == '360' else pi
-
-    theta = theta - start
-    theta = theta % cycle
-    return theta + start
-
-def poly2rbox(polys, num_cls_thata=180, radius=6.0, use_pi=False, use_gaussian=False):
+def poly2rbox(polys):
     """
     Trans poly format to rbox format.
     Args:
         polys (array): (num_gts, [x1 y1 x2 y2 x3 y3 x4 y4]) 
-        num_cls_thata (int): [1], theta class num
-        radius (float32): [1], window radius for Circular Smooth Label
-        use_pi (bool): True θ∈[-pi/2, pi/2) ， False θ∈[0, 180)
     Returns:
-        use_gaussian True:
-            rboxes (array): 
-            csl_labels (array): (num_gts, num_cls_thata)
-        elif 
-            rboxes (array): (num_gts, [cx cy l s θ]) 
+        rboxes (array): (num_gts, [cx cy l s θ]) 
     """
     assert polys.shape[-1] == 8
-    if use_gaussian:
-        csl_labels = []
     rboxes = []
     for poly in polys:
         poly = np.float32(poly.reshape(4, 2))
         (x, y), (w, h), angle = cv2.minAreaRect(poly) # θ ∈ [0， 90]
-        angle = -angle # θ ∈ [-90， 0]
         theta = angle / 180 * pi # 转为pi制
-
         # trans opencv format to longedge format θ ∈ [-pi/2， pi/2]
-        if w != max(w, h): 
+        if w < h:
             w, h = h, w
-            theta += pi/2
-        theta = regular_theta(theta) # limit theta ∈ [-pi/2, pi/2)
-        angle = (theta * 180 / pi) + 90 # θ ∈ [0， 180)
-
-        if not use_pi: # 采用angle弧度制 θ ∈ [0， 180)
-            rboxes.append([x, y, w, h, angle])
-        else: # 采用pi制
-            rboxes.append([x, y, w, h, theta])
-        if use_gaussian:
-            csl_label = gaussian_label_cpu(label=angle, num_class=num_cls_thata, u=0, sig=radius)
-            csl_labels.append(csl_label)
-    if use_gaussian:
-        return np.array(rboxes), np.array(csl_labels)
+            theta += np.pi / 2
+        while not np.pi / 2 > theta >= -np.pi / 2:
+            if theta >= np.pi / 2:
+                theta -= np.pi
+            else:
+                theta += np.pi
+        assert np.pi / 2 > theta >= -np.pi / 2
+        rboxes.append([x, y, w, h, theta])
     return np.array(rboxes)
-    
-def rbox2poly(obboxes):
-    """
-    Trans rbox format to poly format.
+
+def poly2obb_np_le90(poly):
+    """Convert polygons to oriented bounding boxes.
     Args:
-        rboxes (array/tensor): (num_gts, [cx cy l s θ]) θ∈[-pi/2, pi/2)
-
+        polys (ndarray): [x0,y0,x1,y1,x2,y2,x3,y3]
     Returns:
-        polys (array/tensor): (num_gts, [x1 y1 x2 y2 x3 y3 x4 y4]) 
+        obbs (ndarray): [x_ctr,y_ctr,w,h,angle]
     """
-    if isinstance(obboxes, torch.Tensor):
-        center, w, h, theta = obboxes[:, :2], obboxes[:, 2:3], obboxes[:, 3:4], obboxes[:, 4:5]
-        Cos, Sin = torch.cos(theta), torch.sin(theta)
-
-        vector1 = torch.cat(
-            (w/2 * Cos, -w/2 * Sin), dim=-1)
-        vector2 = torch.cat(
-            (-h/2 * Sin, -h/2 * Cos), dim=-1)
-        point1 = center + vector1 + vector2
-        point2 = center + vector1 - vector2
-        point3 = center - vector1 - vector2
-        point4 = center - vector1 + vector2
-        order = obboxes.shape[:-1]
-        return torch.cat(
-            (point1, point2, point3, point4), dim=-1).reshape(*order, 8)
-    else:
-        center, w, h, theta = np.split(obboxes, (2, 3, 4), axis=-1)
-        Cos, Sin = np.cos(theta), np.sin(theta)
-
-        vector1 = np.concatenate(
-            [w/2 * Cos, -w/2 * Sin], axis=-1)
-        vector2 = np.concatenate(
-            [-h/2 * Sin, -h/2 * Cos], axis=-1)
-
-        point1 = center + vector1 + vector2
-        point2 = center + vector1 - vector2
-        point3 = center - vector1 - vector2
-        point4 = center - vector1 + vector2
-        order = obboxes.shape[:-1]
-        return np.concatenate(
-            [point1, point2, point3, point4], axis=-1).reshape(*order, 8)
-
-
+    bboxps = np.array(poly).reshape((4, 2))
+    rbbox = cv2.minAreaRect(bboxps)
+    x, y, w, h, a = rbbox[0][0], rbbox[0][1], rbbox[1][0], rbbox[1][1], rbbox[2]
+    if w < 2 or h < 2:
+        return
+    a = a / 180 * np.pi
+    if w < h:
+        w, h = h, w
+        a += np.pi / 2
+    while not np.pi / 2 > a >= -np.pi / 2:
+        if a >= np.pi / 2:
+            a -= np.pi
+        else:
+            a += np.pi
+    assert np.pi / 2 > a >= -np.pi / 2
+    return x, y, w, h, a
+    
 def poly2hbb(polys):
     """
     Trans poly format to hbb format
@@ -162,21 +107,82 @@ def poly2hbb(polys):
         hbboxes = np.concatenate((x_ctr, y_ctr, w, h), axis=1)
     return hbboxes
 
-def poly_filter(polys, h, w): 
-    """
-    Filter the poly labels which is out of the image.
+def rbox2poly(obboxes):
+    """Convert oriented bounding boxes to polygons.
     Args:
-        polys (array): (num, 8)
-
-    Return：
-        keep_masks (array): (num)
+        obbs (ndarray): [x_ctr,y_ctr,w,h,angle]
+    Returns:
+        polys (ndarray): [x0,y0,x1,y1,x2,y2,x3,y3]
     """
-    x = polys[:, 0::2] # (num, 4) 
-    y = polys[:, 1::2]
-    x_max = np.amax(x, axis=1) # (num)
-    x_min = np.amin(x, axis=1) 
-    y_max = np.amax(y, axis=1)
-    y_min = np.amin(y, axis=1)
-    x_ctr, y_ctr = (x_max + x_min) / 2.0, (y_max + y_min) / 2.0 # (num)
-    keep_masks = (x_ctr > 0) & (x_ctr < w) & (y_ctr > 0) & (y_ctr < h) 
-    return keep_masks
+    try:
+        center, w, h, theta = np.split(obboxes, (2, 3, 4), axis=-1)
+    except:
+        results = np.stack([0., 0., 0., 0., 0., 0., 0., 0.], axis=-1)
+        return results.reshape(1, -1)
+    Cos, Sin = np.cos(theta), np.sin(theta)
+    vector1 = np.concatenate([w / 2 * Cos, w / 2 * Sin], axis=-1)
+    vector2 = np.concatenate([-h / 2 * Sin, h / 2 * Cos], axis=-1)
+    point1 = center - vector1 - vector2
+    point2 = center + vector1 - vector2
+    point3 = center + vector1 + vector2
+    point4 = center - vector1 + vector2
+    polys = np.concatenate([point1, point2, point3, point4], axis=-1)
+    polys = get_best_begin_point(polys)
+    return polys
+
+def cal_line_length(point1, point2):
+    """Calculate the length of line.
+    Args:
+        point1 (List): [x,y]
+        point2 (List): [x,y]
+    Returns:
+        length (float)
+    """
+    return math.sqrt(
+        math.pow(point1[0] - point2[0], 2) +
+        math.pow(point1[1] - point2[1], 2))
+
+
+def get_best_begin_point_single(coordinate):
+    """Get the best begin point of the single polygon.
+    Args:
+        coordinate (List): [x1, y1, x2, y2, x3, y3, x4, y4, score]
+    Returns:
+        reorder coordinate (List): [x1, y1, x2, y2, x3, y3, x4, y4, score]
+    """
+    x1, y1, x2, y2, x3, y3, x4, y4 = coordinate
+    xmin = min(x1, x2, x3, x4)
+    ymin = min(y1, y2, y3, y4)
+    xmax = max(x1, x2, x3, x4)
+    ymax = max(y1, y2, y3, y4)
+    combine = [[[x1, y1], [x2, y2], [x3, y3], [x4, y4]],
+               [[x2, y2], [x3, y3], [x4, y4], [x1, y1]],
+               [[x3, y3], [x4, y4], [x1, y1], [x2, y2]],
+               [[x4, y4], [x1, y1], [x2, y2], [x3, y3]]]
+    dst_coordinate = [[xmin, ymin], [xmax, ymin], [xmax, ymax], [xmin, ymax]]
+    force = 100000000.0
+    force_flag = 0
+    for i in range(4):
+        temp_force = cal_line_length(combine[i][0], dst_coordinate[0]) \
+                     + cal_line_length(combine[i][1], dst_coordinate[1]) \
+                     + cal_line_length(combine[i][2], dst_coordinate[2]) \
+                     + cal_line_length(combine[i][3], dst_coordinate[3])
+        if temp_force < force:
+            force = temp_force
+            force_flag = i
+    if force_flag != 0:
+        pass
+    return np.hstack(
+        (np.array(combine[force_flag]).reshape(8)))
+
+
+def get_best_begin_point(coordinates):
+    """Get the best begin points of polygons.
+    Args:
+        coordinate (ndarray): shape(n, 8).
+    Returns:
+        reorder coordinate (ndarray): shape(n, 8).
+    """
+    coordinates = list(map(get_best_begin_point_single, coordinates.tolist()))
+    coordinates = np.array(coordinates)
+    return coordinates
