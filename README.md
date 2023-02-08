@@ -31,9 +31,9 @@ YoloV7-tiny | https://github.com/bubbliiiing/yolov7-tiny-pytorch
 YoloV7-OBB | https://github.com/Egrt/yolov7-obb
 
 ## 性能情况
-| 训练数据集 | 测试数据集 | 输入图片大小 | mAP 0.5 |
-| :-----: | :------: | :------: | :------: |
-| SSDD | SSDD-Val | 640x640 | 85.4
+| 训练数据集 | 权值文件名称	| 测试数据集 | 输入图片大小 | mAP 0.5 |
+| :-----: | :------: | :------: | :------: | :------: |
+| SSDD | [yolov7_obb_ssdd.pth](https://github.com/Egrt/yolov7-obb/releases/download/V1.0.0/yolov7_obb_ssdd.pth) | SSDD-Val | 640x640 | 95.22
 ### 预测结果展示
 ![预测结果](img/test.jpg)
 ## 所需环境
