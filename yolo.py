@@ -157,9 +157,9 @@ class YOLO(object):
             top_label   = np.array(results[0][:, 7], dtype = 'int32')
             top_conf    = results[0][:, 5] * results[0][:, 6]
             top_rboxes  = results[0][:, :5]
-            top_rboxes[:, [0, 2]]  *= image_shape[1]
-            top_rboxes[:, [1, 3]]  *= image_shape[0]
             top_polys   = rbox2poly(top_rboxes)
+            top_polys[:, 0::2] *= image_shape[1]
+            top_polys[:, 1::2] *= image_shape[0]
         #---------------------------------------------------------#
         #   设置字体与边框厚度
         #---------------------------------------------------------#
@@ -378,9 +378,9 @@ class YOLO(object):
             top_label   = np.array(results[0][:, 7], dtype = 'int32')
             top_conf    = results[0][:, 5] * results[0][:, 6]
             top_rboxes  = results[0][:, :5]
-            top_rboxes[:, [0, 2]]  *= image_shape[1]
-            top_rboxes[:, [1, 3]]  *= image_shape[0]
             top_polys   = rbox2poly(top_rboxes)
+            top_polys[:, 0::2] *= image_shape[1]
+            top_polys[:, 1::2] *= image_shape[0]
             top_hbbs    = poly2hbb(top_polys)
         for i, c in list(enumerate(top_label)):
             predicted_class = self.class_names[int(c)]

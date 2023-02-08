@@ -148,9 +148,9 @@ class EvalCallback():
             top_label   = np.array(results[0][:, 7], dtype = 'int32')
             top_conf    = results[0][:, 5] * results[0][:, 6]
             top_rboxes  = results[0][:, :5]
-            top_rboxes[:, [0, 2]]  *= image_shape[1]
-            top_rboxes[:, [1, 3]]  *= image_shape[0]
             top_polys   = rbox2poly(top_rboxes)
+            top_polys[:, 0::2] *= image_shape[1]
+            top_polys[:, 1::2] *= image_shape[0]
             top_hbbs    = poly2hbb(top_polys)
         top_100     = np.argsort(top_conf)[::-1][:self.max_boxes]
         top_hbbs    = top_hbbs[top_100]
