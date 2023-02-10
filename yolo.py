@@ -11,7 +11,7 @@ from nets.yolo import YoloBody
 from utils.utils import (cvtColor, get_anchors, get_classes, preprocess_input,
                          resize_image, show_config)
 from utils.utils_bbox import DecodeBox
-from utils.utils_rbox import rbox2poly, poly2hbb
+from utils.utils_rbox import *
 '''
 训练自己的数据集必看注释！
 '''
@@ -157,9 +157,7 @@ class YOLO(object):
             top_label   = np.array(results[0][:, 7], dtype = 'int32')
             top_conf    = results[0][:, 5] * results[0][:, 6]
             top_rboxes  = results[0][:, :5]
-            top_polys   = rbox2poly(top_rboxes)
-            top_polys[:, 0::2] *= image_shape[1]
-            top_polys[:, 1::2] *= image_shape[0]
+            top_polys   = correct_rboxes(top_rboxes, image_shape)
         #---------------------------------------------------------#
         #   设置字体与边框厚度
         #---------------------------------------------------------#
