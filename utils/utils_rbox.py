@@ -2,7 +2,7 @@
 Author: [egrt]
 Date: 2023-01-30 19:00:28
 LastEditors: [egrt]
-LastEditTime: 2023-02-10 14:16:06
+LastEditTime: 2023-02-10 22:44:35
 Description: Oriented Bounding Boxes utils
 '''
 
@@ -198,18 +198,5 @@ def correct_rboxes(rboxes, image_shape):
     nh, nw = image_shape
     polys[:, [0, 2, 4, 6]] *= nw
     polys[:, [1, 3, 5, 7]] *= nh
-    rboxes = poly2rbox(polys)
-    correct_polys = []
-    for rbox in rboxes:
-        xc, yc, h, w, ag = rbox[:5]
-        wx, wy = -w / 2 * math.sin(ag), w / 2 * math.cos(ag)
-        hx, hy = h / 2 * math.cos(ag), h / 2 * math.sin(ag)
-        point_x1, point_y1 = xc - wx - hx, yc - wy - hy
-        point_x2, point_y2 = xc - wx + hx, yc - wy + hy
-        point_x3, point_y3 = xc + wx + hx, yc + wy + hy
-        point_x4, point_y4 = xc + wx - hx, yc + wy - hy
-        poly = np.array([point_x1, point_y1, point_x2, point_y2, 
-                point_x3, point_y3, point_x4, point_y4])
-        correct_polys.append(poly)
-    correct_polys = np.array(correct_polys)
-    return correct_polys
+
+    return polys

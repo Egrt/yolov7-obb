@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import math
-from torchvision.ops import nms
+from utils.utils_rbox import *
 from utils.nms_rotated import obb_nms
 
 class DecodeBox():
@@ -183,7 +183,40 @@ class DecodeBox():
             
             if output[i] is not None:
                 output[i] = output[i].cpu().numpy()
+                output[i][:, :5]  = self.yolo_correct_boxes(output[i], input_shape, image_shape, letterbox_image)
         return output
+
+    def yolo_correct_boxes(self, output, input_shape, image_shape, letterbox_image):
+        #-----------------------------------------------------------------#
+        #   把y轴放前面是因为方便预测框和图像的宽高进行相乘
+        #-----------------------------------------------------------------#
+        box_xy = output[..., 0:2]
+        box_wh = output[..., 2:4]
+        angle  = output[..., 4:5]
+        box_yx = box_xy[..., ::-1]
+        box_hw = box_wh[..., ::-1]
+        input_shape = np.array(input_shape)
+        image_shape = np.array(image_shape)
+
+        if letterbox_image:
+            #-----------------------------------------------------------------#
+            #   这里求出来的offset是图像有效区域相对于图像左上角的偏移情况
+            #   new_shape指的是宽高缩放情况
+            #-----------------------------------------------------------------#
+            new_shape = np.round(image_shape * np.min(input_shape/image_shape))
+            offset  = (input_shape - new_shape)/2./input_shape
+            scale   = input_shape/new_shape
+
+            box_yx  = (box_yx - offset) * scale
+            box_hw *= scale
+
+        box_xy = box_yx[:, ::-1]
+        box_hw = box_wh[:, ::-1]
+
+        rboxes  = np.concatenate([box_xy, box_wh, angle], axis=-1)
+        rboxes[:, [0, 2]] *= image_shape[1]
+        rboxes[:, [1, 3]] *= image_shape[0]
+        return rboxes
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
