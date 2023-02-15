@@ -43,8 +43,8 @@ torch==1.2.0
 ## 文件下载
 
 SSDD数据集下载地址如下，里面已经包括了训练集、测试集、验证集（与测试集一样），无需再次划分：  
-链接: https://pan.baidu.com/s/1vCAt9EuK3xJ_QiBdbcbHT   
-提取码: seqb  
+链接: https://pan.baidu.com/s/1Lpg28ZvMSgNXq00abHMZ5Q
+提取码: 2021
 
 ## 训练步骤
 ### a、训练VOC07+12数据集
