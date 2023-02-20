@@ -28,7 +28,8 @@ YoloV7-Tiny-OBB | https://github.com/Egrt/yolov7-tiny-obb
 ### 预测结果展示
 ![预测结果](img/test.jpg)
 ## 所需环境
-torch==1.2.0    
+torch==1.10.1
+torchvision==0.11.2
 为了使用amp混合精度，推荐使用torch1.7.1以上的版本。
 
 ## 文件下载
