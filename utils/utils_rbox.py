@@ -1,16 +1,8 @@
 '''
 Author: [egrt]
 Date: 2023-01-30 19:00:28
-LastEditors: [egrt]
-LastEditTime: 2023-02-10 22:44:35
-Description: Oriented Bounding Boxes utils
-'''
-
-'''
-Author: [egrt]
-Date: 2023-01-30 19:00:28
 LastEditors: Egrt
-LastEditTime: 2023-02-07 14:39:16
+LastEditTime: 2023-03-13 16:22:48
 Description: Oriented Bounding Boxes utils
 '''
 
