@@ -376,22 +376,17 @@ class YOLO(object):
             top_label   = np.array(results[0][:, 7], dtype = 'int32')
             top_conf    = results[0][:, 5] * results[0][:, 6]
             top_rboxes  = results[0][:, :5]
-            top_polys   = rbox2poly(top_rboxes)
-            top_hbbs    = poly2hbb(top_polys)
         for i, c in list(enumerate(top_label)):
             predicted_class = self.class_names[int(c)]
-            hbb             = top_hbbs[i]
+            obb             = top_rboxes[i]
             score           = str(top_conf[i])
 
-            xc, yc, w, h = hbb
-            left   = xc - w/2
-            top    = yc - h/2
-            right  = xc + w/2
-            bottom = yc + h/2
+            xc, yc, w, h, angle = obb
+
             if predicted_class not in class_names:
                 continue
 
-            f.write("%s %s %s %s %s %s\n" % (predicted_class, score[:6], str(int(left)), str(int(top)), str(int(right)),str(int(bottom))))
+            f.write("%s %s %s %s %s %s %s\n" % (predicted_class, score[:6], str(int(xc)), str(int(yc)), str(int(w)), str(int(h)), str(math.degrees(angle))))
 
         f.close()
         return 

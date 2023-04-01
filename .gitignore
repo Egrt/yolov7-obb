@@ -6,7 +6,6 @@ datasets/
 Medical_Datasets/
 lfw/
 logs/
-model_data/
 .temp_map_out/
 2007_train.txt
 2007_val.txt

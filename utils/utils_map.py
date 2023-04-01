@@ -5,6 +5,7 @@ import operator
 import os
 import shutil
 import sys
+
 try:
     from pycocotools.coco import COCO
     from pycocotools.cocoeval import COCOeval
@@ -27,6 +28,24 @@ import numpy as np
   (height)            *
                 (Right,Bottom)
 '''
+
+def iou_rotate_calculate(boxes1, boxes2):
+    """
+    计算旋转面积
+    boxes1,boxes2格式为x,y,w,h,theta
+    """
+    area1 = boxes1[2] * boxes1[3]
+    area2 = boxes2[2] * boxes2[3]
+    r1 = ((boxes1[0], boxes1[1]), (boxes1[2], boxes1[3]), boxes1[4])
+    r2 = ((boxes2[0], boxes2[1]), (boxes2[2], boxes2[3]), boxes2[4])
+    int_pts = cv2.rotatedRectangleIntersection(r1, r2)[1]
+    if int_pts is not None:
+        order_pts = cv2.convexHull(int_pts, returnPoints=True)
+        int_area = cv2.contourArea(order_pts)
+        ious = int_area * 1.0 / (area1 + area2 - int_area)
+    else:
+        ious = 0
+    return ious
 
 def log_average_miss_rate(precision, fp_cumsum, num_images):
     """
@@ -209,7 +228,7 @@ def draw_plot_func(dictionary, n_classes, window_title, plot_title, x_label, out
         """
         fig = plt.gcf() # gcf - get current figure
         axes = plt.gca()
-        r = fig.canvas.get_renderer()
+        r = fig.canvas.manager.get_renderer()
         for i, val in enumerate(sorted_values):
             fp_val = fp_sorted[i]
             tp_val = tp_sorted[i]
@@ -238,7 +257,7 @@ def draw_plot_func(dictionary, n_classes, window_title, plot_title, x_label, out
             if i == (len(sorted_values)-1): # largest bar
                 adjust_axes(r, t, fig, axes)
     # set window title
-    fig.canvas.set_window_title(window_title)
+    fig.canvas.manager.set_window_title(window_title)
     # write classes in y axis
     tick_font_size = 12
     plt.yticks(range(n_classes), sorted_keys, fontsize=tick_font_size)
@@ -328,35 +347,37 @@ def get_map(MINOVERLAP, draw_plot, score_threhold=0.5, path = './map_out'):
         for line in lines_list:
             try:
                 if "difficult" in line:
-                    class_name, left, top, right, bottom, _difficult = line.split()
+                    class_name, x, y, w, h,angle, _difficult = line.split()
                     is_difficult = True
                 else:
-                    class_name, left, top, right, bottom = line.split()
+                    class_name, x, y, w, h,angle = line.split()
             except:
                 if "difficult" in line:
                     line_split  = line.split()
                     _difficult  = line_split[-1]
-                    bottom      = line_split[-2]
-                    right       = line_split[-3]
-                    top         = line_split[-4]
-                    left        = line_split[-5]
+                    angle       = line_split[-2]
+                    h           = line_split[-3]
+                    w           = line_split[-4]
+                    y           = line_split[-5]
+                    x           = line_split[-6]
                     class_name  = ""
-                    for name in line_split[:-5]:
+                    for name in line_split[:-6]:
                         class_name += name + " "
-                    class_name  = class_name[:-1]
+                    class_name   = class_name[:-1]
                     is_difficult = True
                 else:
                     line_split  = line.split()
-                    bottom      = line_split[-1]
-                    right       = line_split[-2]
-                    top         = line_split[-3]
-                    left        = line_split[-4]
+                    angle       = line_split[-1]
+                    h           = line_split[-2]
+                    w           = line_split[-3]
+                    y           = line_split[-4]
+                    x           = line_split[-5]
                     class_name  = ""
-                    for name in line_split[:-4]:
+                    for name in line_split[:-5]:
                         class_name += name + " "
                     class_name = class_name[:-1]
 
-            bbox = left + " " + top + " " + right + " " + bottom
+            bbox = x + " " + y + " " + w + " " + h + " " + angle
             if is_difficult:
                 bounding_boxes.append({"class_name":class_name, "bbox":bbox, "used":False, "difficult":True})
                 is_difficult = False
@@ -396,21 +417,22 @@ def get_map(MINOVERLAP, draw_plot, score_threhold=0.5, path = './map_out'):
             lines = file_lines_to_list(txt_file)
             for line in lines:
                 try:
-                    tmp_class_name, confidence, left, top, right, bottom = line.split()
+                    tmp_class_name, confidence, x, y, w, h,angle = line.split()
                 except:
                     line_split      = line.split()
-                    bottom          = line_split[-1]
-                    right           = line_split[-2]
-                    top             = line_split[-3]
-                    left            = line_split[-4]
-                    confidence      = line_split[-5]
+                    angle           = line_split[-1]
+                    h               = line_split[-2]
+                    w               = line_split[-3]
+                    y               = line_split[-4]
+                    x               = line_split[-5]
+                    confidence      = line_split[-6]
                     tmp_class_name  = ""
-                    for name in line_split[:-5]:
+                    for name in line_split[:-6]:
                         tmp_class_name += name + " "
                     tmp_class_name  = tmp_class_name[:-1]
 
                 if tmp_class_name == class_name:
-                    bbox = left + " " + top + " " + right + " " +bottom
+                    bbox = x + " " + y + " " + w + " " + h + " " + angle
                     bounding_boxes.append({"confidence":confidence, "file_id":file_id, "bbox":bbox})
 
         bounding_boxes.sort(key=lambda x:float(x['confidence']), reverse=True)
@@ -464,17 +486,13 @@ def get_map(MINOVERLAP, draw_plot, score_threhold=0.5, path = './map_out'):
                 bb          = [float(x) for x in detection["bbox"].split()]
                 for obj in ground_truth_data:
                     if obj["class_name"] == class_name:
-                        bbgt    = [ float(x) for x in obj["bbox"].split() ]
-                        bi      = [max(bb[0],bbgt[0]), max(bb[1],bbgt[1]), min(bb[2],bbgt[2]), min(bb[3],bbgt[3])]
-                        iw      = bi[2] - bi[0] + 1
-                        ih      = bi[3] - bi[1] + 1
-                        if iw > 0 and ih > 0:
-                            ua = (bb[2] - bb[0] + 1) * (bb[3] - bb[1] + 1) + (bbgt[2] - bbgt[0]
-                                            + 1) * (bbgt[3] - bbgt[1] + 1) - iw * ih
-                            ov = iw * ih / ua
-                            if ov > ovmax:
-                                ovmax = ov
-                                gt_match = obj
+                        bbgt    = [float(x) for x in obj["bbox"].split() ]
+                        box1    = np.array([bb[0], bb[1], bb[2], bb[3], bb[4]], np.float32)
+                        box2    = np.array([bbgt[0], bbgt[1], bbgt[2], bbgt[3], bbgt[4]], np.float32)
+                        ov      = iou_rotate_calculate(box1, box2)
+                        if ov > ovmax:
+                            ovmax = ov
+                            gt_match = obj
 
                 if show_animation:
                     status = "NO MATCH FOUND!" 
@@ -606,7 +624,7 @@ def get_map(MINOVERLAP, draw_plot, score_threhold=0.5, path = './map_out'):
                 plt.fill_between(area_under_curve_x, 0, area_under_curve_y, alpha=0.2, edgecolor='r')
 
                 fig = plt.gcf()
-                fig.canvas.set_window_title('AP ' + class_name)
+                fig.canvas.manager.set_window_title('AP ' + class_name)
 
                 plt.title('class: ' + text)
                 plt.xlabel('Recall')
@@ -782,7 +800,7 @@ def get_map(MINOVERLAP, draw_plot, score_threhold=0.5, path = './map_out'):
         plot_title = "mAP = {0:.2f}%".format(mAP*100)
         x_label = "Average Precision"
         output_path = RESULTS_FILES_PATH + "/mAP.png"
-        to_show = True
+        to_show = False
         plot_color = 'royalblue'
         draw_plot_func(
             ap_dictionary,

@@ -1,12 +1,11 @@
 import os
 import xml.etree.ElementTree as ET
-
+import cv2
 from PIL import Image
 from tqdm import tqdm
 import numpy as np
 from utils.utils import get_classes
 from utils.utils_map import get_coco_map, get_map
-from utils.utils_rbox import poly2hbb
 from yolo import YOLO
 
 if __name__ == "__main__":
@@ -126,16 +125,12 @@ if __name__ == "__main__":
                     x4      = bndbox.find('x4').text
                     y4      = bndbox.find('y4').text
                     poly    = np.array([[x1, y1, x2, y2, x3, y3, x4, y4]], dtype=np.int32)
-                    hbb     = poly2hbb(poly)
-                    xc, yc, w, h = hbb[0]
-                    left   = xc - w/2
-                    top    = yc - h/2
-                    right  = xc + w/2
-                    bottom = yc + h/2
+                    poly    = poly.reshape(4, 2)
+                    (x, y), (w, h), angle = cv2.minAreaRect(poly)  # θ ∈ [0， 90]
                     if difficult_flag:
-                        new_f.write("%s %s %s %s %s difficult\n" % (obj_name, left, top, right, bottom))
+                        new_f.write("%s %s %s %s %s %s difficult\n" % (obj_name, int(x), int(y), int(w), int(h),angle))
                     else:
-                        new_f.write("%s %s %s %s %s\n" % (obj_name, left, top, right, bottom))
+                        new_f.write("%s %s %s %s %s %s\n" % (obj_name, int(x), int(y), int(w), int(h),angle))
         print("Get ground truth result done.")
 
     if map_mode == 0 or map_mode == 3:
