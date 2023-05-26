@@ -1,8 +1,8 @@
 '''
 Author: [egrt]
 Date: 2023-01-30 18:47:24
-LastEditors: [egrt]
-LastEditTime: 2023-01-30 18:48:35
+LastEditors: Egrt
+LastEditTime: 2023-05-26 15:00:14
 Description: 
 '''
 import torch
@@ -14,6 +14,7 @@ class KLDloss(nn.Module):
         super(KLDloss, self).__init__()
         self.fun = fun
         self.taf = taf
+        self.eps = 1e-8
 
     def forward(self, pred, target): # pred [[x,y,w,h,angle], ...]
         #assert pred.shape[0] == target.shape[0]
@@ -52,7 +53,7 @@ class KLDloss(nn.Module):
         else:
             pass
 
-        kld_loss = 1 - 1 / (self.taf + kld)
+        kld_loss = 1 - 1 / (self.taf + self.eps + kld)
 
         return kld_loss
     
