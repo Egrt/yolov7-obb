@@ -162,6 +162,22 @@ img/street.jpg
 4. 在yolo.py里面修改model_path以及classes_path。**model_path指向训练好的权值文件，在logs文件夹里。classes_path指向检测类别所对应的txt。**  
 5. 运行get_map.py即可获得评估结果，评估结果会保存在map_out文件夹中。
 
+## Citation
+如果该项目对你有所帮助，可以引用我们的论文：
+```
+@Article{app132011402,
+AUTHOR = {Ye, Zixun and Zhang, Hongying and Gu, Jingliang and Li, Xue},
+TITLE = {YOLOv7-3D: A Monocular 3D Traffic Object Detection Method from a Roadside Perspective},
+JOURNAL = {Applied Sciences},
+VOLUME = {13},
+YEAR = {2023},
+NUMBER = {20},
+ARTICLE-NUMBER = {11402},
+URL = {https://www.mdpi.com/2076-3417/13/20/11402},
+ISSN = {2076-3417},
+DOI = {10.3390/app132011402}
+}
+```
 ## Reference
 https://github.com/WongKinYiu/yolov7
 
